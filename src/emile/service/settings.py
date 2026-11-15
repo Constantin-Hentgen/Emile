@@ -39,7 +39,16 @@ class Settings(BaseSettings):
     max_keeps_days: int = Field(default=60, ge=1, le=3650)
     ask_grace_days: int = Field(default=3, ge=0, le=365)
 
+    recipe_sources: str = "wikibooks"
+    """Comma-separated recipe sources, in order; empty disables recipe lookups."""
+    http_timeout: float = Field(default=8.0, gt=0, le=120)
+    """Timeout (seconds) of outgoing HTTP requests (recipe sources)."""
+
     _tz = field_validator("default_timezone")(_check_timezone)
+
+    @property
+    def recipe_source_names(self) -> list[str]:
+        return [name.strip().lower() for name in self.recipe_sources.split(",") if name.strip()]
 
     @field_validator("admin_key")
     @classmethod

@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from emile.core import InvalidInput, ItemNotFound, LimitExceeded, NoCurrentList, StaleList
 from emile.service.accounts import AccountError
-from emile.service.repository import Busy
+from emile.service.repository import Busy, WouldOverwrite
 
 # (exception, HTTP status, error code)
 DOMAIN_ERRORS: list[tuple[type[Exception], int, str]] = [
@@ -18,6 +18,7 @@ DOMAIN_ERRORS: list[tuple[type[Exception], int, str]] = [
     (InvalidInput, 422, "invalid_input"),
     (AccountError, 400, "account_error"),
     (Busy, 503, "busy"),
+    (WouldOverwrite, 409, "would_overwrite"),
 ]
 
 _HTTP_CODES = {400: "bad_request", 401: "unauthorized", 403: "forbidden", 404: "not_found", 409: "conflict"}

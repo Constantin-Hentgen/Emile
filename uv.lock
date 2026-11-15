@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.13"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -148,6 +148,7 @@ client = [
 service = [
     { name = "alembic" },
     { name = "fastapi" },
+    { name = "httpx2" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic-settings" },
     { name = "sqlalchemy" },
@@ -169,6 +170,7 @@ requires-dist = [
     { name = "alembic", marker = "extra == 'service'", specifier = ">=1.14" },
     { name = "fastapi", marker = "extra == 'service'", specifier = ">=0.115" },
     { name = "httpx2", marker = "extra == 'client'", specifier = ">=2.16" },
+    { name = "httpx2", marker = "extra == 'service'", specifier = ">=2.16" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'service'", specifier = ">=3.2" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pydantic-settings", marker = "extra == 'service'", specifier = ">=2.6" },

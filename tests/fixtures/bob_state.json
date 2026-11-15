@@ -1,0 +1,35 @@
+{
+  "memories": [{"id": 1, "category": "autre", "text": "SYNTHETIC: must never be imported"}],
+  "next_id": 2,
+  "history": {"42": [{"role": "user", "content": "SYNTHETIC conversation"}]},
+  "meals": [{"id": 1, "date": "2026-11-08", "text": "SYNTHETIC meal"}],
+  "next_shopping_id": 8,
+  "shopping": {
+    "id": 7,
+    "items": [
+      {"name": "Bananes", "qty": "7", "aisle": "🥦 Fruits et légumes", "keeps": 6, "done": true},
+      {"name": "Riz basmati", "qty": "1 kg", "aisle": "🍚 Féculents", "keeps": null, "done": false},
+      {"name": "Saumon", "qty": "300 g", "aisle": "🐟 Poisson", "keeps": 2, "done": true},
+      {"name": "Yaourts nature", "qty": "8", "aisle": "🥛 Frais", "keeps": 10, "done": false}
+    ],
+    "days": 7,
+    "coverage": "petits-déj, déjeuners en boîte, dîners ; 1 personne",
+    "cost_min": 55.0,
+    "cost_max": 70.0,
+    "recipes": "*Riz au saumon*\nCuire le riz, poêler le saumon.",
+    "recipe_meals": [31, 32],
+    "event_uid": "0b0f4b52-0000-4000-8000-000000000001@running-coach-shopping",
+    "event_start": "2026-11-14T14:00:00+00:00",
+    "event_end": "2026-11-14T14:30:00+00:00",
+    "created": "2026-11-08T17:02:11.123456+00:00"
+  },
+  "next_pantry_id": 15,
+  "pantry": [
+    {"id": 9, "name": "Œufs", "qty": "6", "added": "2026-11-05", "source": "conversation", "keeps": 21, "due": "2026-11-26", "asked": null},
+    {"id": 11, "name": "Chili sin carne", "qty": "2 boîtes", "added": "2026-11-07", "source": "conversation", "keeps": 4, "due": "2026-11-11", "asked": null, "boxes": true},
+    {"id": 12, "name": "Bananes", "qty": "7", "added": "2026-11-08", "source": "liste 7:0", "keeps": 6, "due": "2026-11-14", "asked": null},
+    {"id": 13, "name": "Saumon", "qty": "300 g", "added": "2026-11-08", "source": "liste 7:2", "keeps": 2, "due": "2026-11-10", "asked": "2026-11-10"},
+    {"name": "Sel", "qty": null, "added": "2026-10-01", "source": null},
+    {"id": 14, "name": "Pâtes", "qty": "500 g", "added": "2026-11-01", "source": "liste 5:3", "keeps": null, "due": null, "asked": null}
+  ]
+}
