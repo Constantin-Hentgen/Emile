@@ -21,6 +21,8 @@ jobs:
         run: uv run --frozen ruff check --output-format=github .
       - name: Ruff format
         run: uv run --frozen ruff format --check .
+      - name: Type check
+        run: uv run --frozen mypy
 
   test:
     runs-on: ubuntu-latest
