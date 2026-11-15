@@ -1,7 +1,7 @@
 """Service configuration, read from ``STOCKPOT_*`` environment variables.
 
 Every variable is prefixed so Stockpot can share a Portainer stack (and its single variable namespace) with other
-services, such as the Running Coach bot, without clashing on generic names like ``LOG_LEVEL`` or ``DATABASE_URL``.
+services, such as the Bob bot, without clashing on generic names like ``LOG_LEVEL`` or ``DATABASE_URL``.
 Each field must be documented in ``.env.example``; a test enforces it.
 """
 
