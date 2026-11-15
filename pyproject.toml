@@ -1,5 +1,5 @@
 [project]
-name = "stockpot"
+name = "emile"
 version = "0.0.0"
 description = "Self-hosted, API-first groceries service: shopping lists, kitchen stock, batch-cooked boxes, recipes, CalDAV sync."
 readme = "README.md"
@@ -26,16 +26,16 @@ service = [
 ]
 
 [project.scripts]
-stockpot = "stockpot.cli:main"
+emile = "emile.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/Constantin-Hentgen/stockpot"
-Documentation = "https://github.com/Constantin-Hentgen/stockpot/wiki"
-Changelog = "https://github.com/Constantin-Hentgen/stockpot/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/Constantin-Hentgen/emile"
+Documentation = "https://github.com/Constantin-Hentgen/emile/wiki"
+Changelog = "https://github.com/Constantin-Hentgen/emile/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
-    "stockpot[service]",
+    "emile[service]",
     "pytest>=8",
     "httpx2>=2.16.0",
     "ruff>=0.8",

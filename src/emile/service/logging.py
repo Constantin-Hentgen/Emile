@@ -1,4 +1,4 @@
-"""Logging setup shared by the CLI and the app, so uvicorn and Stockpot messages use one format and one level."""
+"""Logging setup shared by the CLI and the app, so uvicorn and Emile messages use one format and one level."""
 
 import logging
 

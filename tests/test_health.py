@@ -1,8 +1,8 @@
 from fastapi.testclient import TestClient
 
-from stockpot import __version__
-from stockpot.service.app import create_app
-from stockpot.service.settings import Settings
+from emile import __version__
+from emile.service.app import create_app
+from emile.service.settings import Settings
 
 
 def test_health_reports_ok_and_version(tmp_path):
@@ -15,4 +15,4 @@ def test_health_reports_ok_and_version(tmp_path):
 
 def test_openapi_is_served():
     with TestClient(create_app(Settings())) as client:
-        assert client.get("/openapi.json").json()["info"]["title"] == "Stockpot"
+        assert client.get("/openapi.json").json()["info"]["title"] == "Emile"

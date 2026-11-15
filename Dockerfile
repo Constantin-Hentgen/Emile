@@ -12,17 +12,17 @@ COPY src ./src
 RUN uv sync --frozen --no-dev --extra service
 
 # /data holds the SQLite database (named volume; it inherits these permissions when created).
-RUN useradd --system --no-create-home stockpot && mkdir -p /data && chown stockpot /data
+RUN useradd --system --no-create-home emile && mkdir -p /data && chown emile /data
 VOLUME /data
-USER stockpot
+USER emile
 
 ENV PATH="/app/.venv/bin:$PATH" \
-    STOCKPOT_HOST=0.0.0.0 \
-    STOCKPOT_PORT=8000 \
-    STOCKPOT_DATABASE_URL=sqlite:////data/stockpot.db
+    EMILE_HOST=0.0.0.0 \
+    EMILE_PORT=8000 \
+    EMILE_DATABASE_URL=sqlite:////data/emile.db
 EXPOSE 8000
 
 HEALTHCHECK --interval=60s --timeout=5s --start-period=20s \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
 
-CMD ["stockpot", "serve"]
+CMD ["emile", "serve"]

@@ -1,6 +1,6 @@
 import pytest
 
-from stockpot import cli
+from emile import cli
 
 
 def test_serve_passes_settings_and_overrides_to_uvicorn(monkeypatch):
@@ -8,8 +8,8 @@ def test_serve_passes_settings_and_overrides_to_uvicorn(monkeypatch):
     import uvicorn
 
     monkeypatch.setattr(uvicorn, "run", lambda app, **kw: calls.update(kw))
-    monkeypatch.setenv("STOCKPOT_PORT", "9123")
-    from stockpot.service.settings import get_settings
+    monkeypatch.setenv("EMILE_PORT", "9123")
+    from emile.service.settings import get_settings
 
     get_settings.cache_clear()
     try:

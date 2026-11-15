@@ -8,8 +8,8 @@ from typing import Literal
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from stockpot import __version__
-from stockpot.service.settings import Settings, get_settings
+from emile import __version__
+from emile.service.settings import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +27,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        logger.info("Stockpot %s starting", __version__)
+        logger.info("Emile %s starting", __version__)
         yield
-        logger.info("Stockpot stopping")
+        logger.info("Emile stopping")
 
     app = FastAPI(
-        title="Stockpot",
+        title="Emile",
         version=__version__,
         summary="Shopping lists, kitchen stock and batch-cooked boxes. Deterministic: no LLM inside.",
         lifespan=lifespan,

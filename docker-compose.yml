@@ -1,17 +1,17 @@
 services:
-  stockpot:
+  emile:
     build: .
-    container_name: stockpot
+    container_name: emile
     restart: unless-stopped
     # Each variable is interpolated from `.env` next to this file (docker compose) or from the Portainer stack UI.
-    # An unset variable arrives empty and Stockpot uses its default (see .env.example).
+    # An unset variable arrives empty and Emile uses its default (see .env.example).
     environment:
-      STOCKPOT_LOG_LEVEL: ${STOCKPOT_LOG_LEVEL:-INFO}
-      STOCKPOT_DATABASE_URL: ${STOCKPOT_DATABASE_URL:-sqlite:////data/stockpot.db}
+      EMILE_LOG_LEVEL: ${EMILE_LOG_LEVEL:-INFO}
+      EMILE_DATABASE_URL: ${EMILE_DATABASE_URL:-sqlite:////data/emile.db}
     ports:
-      - "${STOCKPOT_PUBLISHED_PORT:-18010}:8000"
+      - "${EMILE_PUBLISHED_PORT:-18010}:8000"
     volumes:
-      - stockpot-data:/data
+      - emile-data:/data
 
 volumes:
-  stockpot-data:
+  emile-data:
