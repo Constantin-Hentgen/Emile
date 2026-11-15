@@ -1,0 +1,17 @@
+services:
+  emile:
+    build: .
+    container_name: emile
+    restart: unless-stopped
+    # Each variable is interpolated from `.env` next to this file (docker compose) or from the Portainer stack UI.
+    # An unset variable arrives empty and Emile uses its default (see .env.example).
+    environment:
+      EMILE_LOG_LEVEL: ${EMILE_LOG_LEVEL:-INFO}
+      EMILE_DATABASE_URL: ${EMILE_DATABASE_URL:-sqlite:////data/emile.db}
+    ports:
+      - "${EMILE_PUBLISHED_PORT:-18010}:8000"
+    volumes:
+      - emile-data:/data
+
+volumes:
+  emile-data:

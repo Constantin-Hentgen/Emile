@@ -1,0 +1,67 @@
+[project]
+name = "emile"
+version = "0.0.0"
+description = "Self-hosted, API-first groceries service: shopping lists, kitchen stock, batch-cooked boxes, recipes, CalDAV sync."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.13"
+keywords = ["groceries", "shopping-list", "pantry", "meal-prep", "caldav"]
+classifiers = [
+    "Programming Language :: Python :: 3.13",
+    "Framework :: FastAPI",
+    "Topic :: Home Automation",
+]
+# The core library stays importable without the web/DB stack: keep this list minimal.
+dependencies = [
+    "pydantic>=2.9",
+]
+
+[project.optional-dependencies]
+# Everything the HTTP service needs on top of the core library.
+service = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic-settings>=2.6",
+]
+
+[project.scripts]
+emile = "emile.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Constantin-Hentgen/emile"
+Documentation = "https://github.com/Constantin-Hentgen/emile/wiki"
+Changelog = "https://github.com/Constantin-Hentgen/emile/blob/main/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+    "emile[service]",
+    "pytest>=8",
+    "httpx2>=2.16.0",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["uv_build>=0.9,<0.10"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF", "ANN", "S", "PT", "C4", "RET"]
+ignore = [
+    "ANN401",  # Any is sometimes the honest type (raw JSON from clients)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "ANN", "S603"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "integration: needs external services (e.g. a Radicale container); skipped unless selected with -m integration",
+]
