@@ -29,9 +29,9 @@ service = [
 emile = "emile.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/Constantin-Hentgen/emile"
-Documentation = "https://github.com/Constantin-Hentgen/emile/wiki"
-Changelog = "https://github.com/Constantin-Hentgen/emile/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/Constantin-Hentgen/Emile"
+Documentation = "https://github.com/Constantin-Hentgen/Emile/wiki"
+Changelog = "https://github.com/Constantin-Hentgen/Emile/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
