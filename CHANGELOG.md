@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/Constantin-Hentgen/Emile/compare/v0.2.0...v0.3.0) (2026-11-15)
+
+
+### Added
+
+* **api:** HTTP API v1 with households, API keys, persistence and a typed client ([43241c5](https://github.com/Constantin-Hentgen/Emile/commit/43241c5f8e2e16ff539c823ed032533ca2ce7e68))
+
 ## [0.2.0](https://github.com/Constantin-Hentgen/Emile/compare/v0.1.0...v0.2.0) (2026-11-15)
 
 
