@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --python 3.13
+      - name: Ruff lint
+        run: uv run --frozen ruff check --output-format=github .
+      - name: Ruff format
+        run: uv run --frozen ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --python 3.13
+      - name: Tests
+        run: uv run --frozen python -m pytest -q
+
+  docker:
+    # `docker compose up` must work on a fresh machine: build the image and wait for /health.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compose up and wait for the healthcheck
+        run: |
+          docker compose up -d --build --wait --wait-timeout 120
+          curl -fsS http://127.0.0.1:18010/health
+      - name: Logs
+        if: always()
+        run: docker compose logs
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
