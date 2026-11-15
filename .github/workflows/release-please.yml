@@ -6,6 +6,11 @@ on:
   push:
     branches: [main]
 
+# Two merges in a row start two runs; queue them so they don't both push to the release branch.
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: write
