@@ -24,3 +24,12 @@ def test_cli_help_needs_no_service_import():
         subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True).stdout.split()
     )
     assert not loaded & FORBIDDEN
+
+
+def test_schemas_and_client_need_no_web_framework_or_database():
+    """A client only needs pydantic and httpx2: it must not drag in FastAPI or SQLAlchemy."""
+    code = "import sys, emile.schemas, emile.client\nprint(' '.join(sorted({m.split('.')[0] for m in sys.modules})))"
+    loaded = set(
+        subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True).stdout.split()
+    )
+    assert not loaded & {"fastapi", "starlette", "uvicorn", "sqlalchemy", "alembic", "psycopg"}

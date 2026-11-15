@@ -13,7 +13,7 @@ import datetime
 from collections.abc import Sequence
 
 from emile.core import stock
-from emile.core.errors import ItemNotFound, LimitExceeded, NoCurrentList, StaleList
+from emile.core.errors import InvalidInput, ItemNotFound, LimitExceeded, NoCurrentList, StaleList
 from emile.core.limits import DEFAULT_LIMITS, Limits
 from emile.core.models import EditSummary, Kitchen, ListItem, NewItem, ShoppingList, Source
 from emile.core.text import MAX_AISLE, MAX_COVERAGE, MAX_NAME, MAX_QTY, clean, keeps_days, name_key, positive_int
@@ -60,7 +60,7 @@ def new_list(
     """
     clean_items = [item for new in items if (item := _item(new, limits)) is not None]
     if not clean_items:
-        raise ValueError("empty shopping list")
+        raise InvalidInput("empty shopping list")
     if len(clean_items) > limits.max_list_items:
         raise LimitExceeded(f"{len(clean_items)} items: a list holds at most {limits.max_list_items}")
     if cost_min is not None and cost_max is not None and cost_max < cost_min:

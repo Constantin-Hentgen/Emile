@@ -1,24 +1,89 @@
-"""``emile`` command line: run the server (and, from M3, manage users, households and API keys)."""
+"""``emile`` command line: run the server, migrate the database, manage users, households and API keys.
+
+In Docker: ``docker exec emile emile setup bob --household Home`` creates a user, a household and an API key.
+"""
 
 import argparse
-from collections.abc import Sequence
+import datetime
+import sys
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:  # the service stack is imported lazily: `emile --help` must work without the service extra
+    from sqlalchemy.orm import Session
+
+    from emile.service.settings import Settings
 
 
 def main(argv: Sequence[str] | None = None) -> None:
     """Entry point of the ``emile`` script."""
     parser = argparse.ArgumentParser(prog="emile", description="Emile groceries service")
     sub = parser.add_subparsers(dest="command", required=True)
+
     serve = sub.add_parser("serve", help="run the HTTP service")
     serve.add_argument("--host", help="bind address (default: EMILE_HOST)")
     serve.add_argument("--port", type=int, help="port (default: EMILE_PORT)")
-    args = parser.parse_args(argv)
 
+    db = sub.add_parser("db", help="database").add_subparsers(dest="action", required=True)
+    db.add_parser("upgrade", help="apply pending migrations")
+
+    users = sub.add_parser("users", help="users").add_subparsers(dest="action", required=True)
+    users.add_parser("create", help="create a user").add_argument("name")
+    users.add_parser("list", help="list users")
+
+    keys = sub.add_parser("keys", help="API keys").add_subparsers(dest="action", required=True)
+    create_key = keys.add_parser("create", help="create an API key (printed once)")
+    create_key.add_argument("user", help="user name or id")
+    create_key.add_argument("--label", help="what the key is for, e.g. 'bob'")
+    keys.add_parser("revoke", help="revoke a key").add_argument("key_id", type=int)
+    keys.add_parser("list", help="list keys (never their secrets)")
+
+    households = sub.add_parser("households", help="households").add_subparsers(dest="action", required=True)
+    create_household = households.add_parser("create", help="create a household")
+    create_household.add_argument("name")
+    _household_options(create_household)
+    create_household.add_argument("--member", action="append", default=[], help="user name or id (repeatable)")
+    add_member = households.add_parser("add-member", help="add a user to a household")
+    add_member.add_argument("household_id", type=int)
+    add_member.add_argument("user", help="user name or id")
+    households.add_parser("list", help="list households")
+
+    setup = sub.add_parser("setup", help="create a user, a household and an API key in one go")
+    setup.add_argument("user", help="user name (reused if it exists)")
+    setup.add_argument("--household", help="household name (default: the user's name)")
+    setup.add_argument("--label", help="key label (default: the user's name)")
+    _household_options(setup)
+
+    args = parser.parse_args(argv)
     if args.command == "serve":
         _serve(args.host, args.port)
+        return
+    handlers: dict[tuple[str, str], Callable[[Session, argparse.Namespace, Settings, datetime.datetime], None]] = {
+        ("users", "create"): _users_create,
+        ("users", "list"): _users_list,
+        ("keys", "create"): _keys_create,
+        ("keys", "revoke"): _keys_revoke,
+        ("keys", "list"): _keys_list,
+        ("households", "create"): _households_create,
+        ("households", "add-member"): _households_add_member,
+        ("households", "list"): _households_list,
+        ("setup", ""): _setup,
+    }
+    if args.command == "db":
+        _with_db(None)
+        print("database up to date")
+        return
+    _with_db(handlers[(args.command, getattr(args, "action", ""))], args)
+
+
+def _household_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--timezone", help="IANA time zone (default: EMILE_DEFAULT_TIMEZONE)")
+    parser.add_argument("--language", choices=["fr", "en"], help="default: EMILE_DEFAULT_LANGUAGE")
+    parser.add_argument("--currency", help="default: EMILE_DEFAULT_CURRENCY")
+    parser.add_argument("--boxes", type=int, default=0, help="meal-prep boxes owned (default: 0)")
 
 
 def _serve(host: str | None, port: int | None) -> None:
-    # Imported lazily: the core library and `emile --help` must not need the service extra.
     import uvicorn
 
     from emile.service.app import create_app
@@ -28,3 +93,137 @@ def _serve(host: str | None, port: int | None) -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
     uvicorn.run(create_app(settings), host=host or settings.host, port=port or settings.port, log_config=None)
+
+
+def _with_db(handler: Callable[..., None] | None, args: argparse.Namespace | None = None) -> None:
+    """Migrate, then run ``handler`` in one transaction; account errors exit with status 1 and a clean message."""
+    from emile.service import migrate
+    from emile.service.accounts import AccountError
+    from emile.service.db import Database
+    from emile.service.settings import get_settings
+
+    settings = get_settings()
+    database = Database(settings.database_url)
+    try:
+        migrate.upgrade(database)
+        if handler is not None:
+            with database.session() as session:
+                handler(session, args, settings, datetime.datetime.now(datetime.UTC))
+    except AccountError as e:
+        print(f"error: {e}", file=sys.stderr)
+        raise SystemExit(1) from None
+    finally:
+        database.dispose()
+
+
+def _users_create(session: "Session", args: Any, settings: "Settings", now: datetime.datetime) -> None:
+    from emile.service import accounts
+
+    user = accounts.create_user(session, args.name, now)
+    print(f"user {user.id}: {user.name}")
+
+
+def _users_list(session: "Session", args: Any, settings: "Settings", now: datetime.datetime) -> None:
+    from sqlalchemy import select
+
+    from emile.service.tables import User
+
+    for user in session.scalars(select(User).order_by(User.id)):
+        print(f"{user.id}\t{user.name}")
+
+
+def _print_key(key: Any, secret: str) -> None:
+    print(f"key {key.id} for user {key.user_id} ({key.label or 'no label'}). Copy it now, it is not stored:")
+    print(secret)
+
+
+def _keys_create(session: "Session", args: Any, settings: "Settings", now: datetime.datetime) -> None:
+    from emile.service import accounts
+
+    key, secret = accounts.create_key(session, accounts.find_user(session, args.user), args.label, now)
+    _print_key(key, secret)
+
+
+def _keys_revoke(session: "Session", args: Any, settings: "Settings", now: datetime.datetime) -> None:
+    from emile.service import accounts
+
+    key = accounts.revoke_key(session, args.key_id, now)
+    print(f"key {key.id} ({key.prefix}…) revoked")
+
+
+def _keys_list(session: "Session", args: Any, settings: "Settings", now: datetime.datetime) -> None:
+    from sqlalchemy import select
+
+    from emile.service.tables import ApiKey, User
+
+    rows = session.execute(select(ApiKey, User.name).join(User, User.id == ApiKey.user_id).order_by(ApiKey.id))
+    for key, user in rows:
+        state = (
+            "revoked" if key.revoked_at else f"last used {key.last_used_at:%Y-%m-%d}" if key.last_used_at else "unused"
+        )
+        print(f"{key.id}\t{key.prefix}…\t{user}\t{key.label or ''}\t{state}")
+
+
+def _new_household(
+    session: "Session", name: str, args: Any, settings: "Settings", members: list[Any], now: datetime.datetime
+) -> Any:
+    from emile.schemas import _check_timezone
+    from emile.service import accounts
+
+    try:
+        timezone = _check_timezone(args.timezone) or settings.default_timezone
+    except ValueError as e:
+        raise accounts.AccountError(str(e)) from None
+    return accounts.create_household(
+        session,
+        name,
+        timezone=timezone,
+        language=args.language or settings.default_language,
+        currency=args.currency or settings.default_currency,
+        meal_boxes=max(0, args.boxes),
+        members=members,
+        now=now,
+    )
+
+
+def _households_create(session: "Session", args: Any, settings: "Settings", now: datetime.datetime) -> None:
+    from emile.service import accounts
+
+    members = [accounts.find_user(session, ref) for ref in args.member]
+    household = _new_household(session, args.name, args, settings, members, now)
+    print(f"household {household.id}: {household.name} ({household.timezone}, {household.language})")
+
+
+def _households_add_member(session: "Session", args: Any, settings: "Settings", now: datetime.datetime) -> None:
+    from emile.service import accounts
+
+    household = accounts.find_household(session, args.household_id)
+    user = accounts.find_user(session, args.user)
+    accounts.add_member(session, household, user, now)
+    print(f"{user.name} is a member of household {household.id}")
+
+
+def _households_list(session: "Session", args: Any, settings: "Settings", now: datetime.datetime) -> None:
+    from sqlalchemy import select
+
+    from emile.service import accounts
+    from emile.service.tables import Household
+
+    for household in session.scalars(select(Household).order_by(Household.id)):
+        out = accounts.household_out(session, household)
+        members = ", ".join(m.name for m in out.members)
+        print(f"{out.id}\t{out.name}\t{out.timezone}\t{out.language}\t{members}")
+
+
+def _setup(session: "Session", args: Any, settings: "Settings", now: datetime.datetime) -> None:
+    from emile.service import accounts
+
+    try:
+        user = accounts.find_user(session, args.user)
+    except accounts.AccountError:
+        user = accounts.create_user(session, args.user, now)
+    print(f"user {user.id}: {user.name}")
+    household = _new_household(session, args.household or user.name, args, settings, [user], now)
+    print(f"household {household.id}: {household.name} ({household.timezone}, {household.language})")
+    key, secret = accounts.create_key(session, user, args.label or user.name, now)
+    _print_key(key, secret)
