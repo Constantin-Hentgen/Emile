@@ -1,6 +1,6 @@
 # Emile
 
-[![CI](https://github.com/Constantin-Hentgen/emile/actions/workflows/ci.yml/badge.svg)](https://github.com/Constantin-Hentgen/emile/actions/workflows/ci.yml)
+[![CI](https://github.com/Constantin-Hentgen/Emile/actions/workflows/ci.yml/badge.svg)](https://github.com/Constantin-Hentgen/Emile/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Emile** is a small, self-hosted service for the kitchen side of life: **shopping lists** grouped by aisle
@@ -25,7 +25,7 @@ as well behind a script, a home-automation flow or your own front end.
 ## Quick start
 
 ```sh
-git clone https://github.com/Constantin-Hentgen/emile.git && cd emile
+git clone https://github.com/Constantin-Hentgen/Emile.git && cd emile
 cp .env.example .env        # optional: every variable has a default
 docker compose up -d
 curl http://localhost:18010/health
@@ -38,7 +38,7 @@ For development, use `uv sync`, then `uv run --frozen python -m pytest -q`.
 ## Documentation
 
 Everything else (configuration, API, CalDAV sync, the library, operations) is in the
-**[wiki](https://github.com/Constantin-Hentgen/emile/wiki)**.
+**[wiki](https://github.com/Constantin-Hentgen/Emile/wiki)**.
 
 ## Licence
 
