@@ -14,7 +14,7 @@ Typical use::
 """
 
 from emile.core import render, shopping, stock
-from emile.core.errors import EmileError, ItemNotFound, LimitExceeded, NoCurrentList, StaleList
+from emile.core.errors import EmileError, InvalidInput, ItemNotFound, LimitExceeded, NoCurrentList, StaleList
 from emile.core.limits import DEFAULT_LIMITS, Limits
 from emile.core.models import (
     EditSummary,
@@ -34,6 +34,7 @@ __all__ = [
     "DEFAULT_LIMITS",
     "EditSummary",
     "EmileError",
+    "InvalidInput",
     "ItemNotFound",
     "Kitchen",
     "LimitExceeded",

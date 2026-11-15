@@ -14,7 +14,7 @@ import datetime
 import re
 from collections.abc import Iterable, Iterator, Sequence
 
-from emile.core.errors import LimitExceeded
+from emile.core.errors import InvalidInput, LimitExceeded
 from emile.core.limits import DEFAULT_LIMITS, Limits
 from emile.core.models import KeepsValue, Kitchen, Source, StockAdd, StockEntry, StockRemove, StockSummary
 from emile.core.text import MAX_NAME, MAX_QTY, clean, keeps_days, name_key
@@ -60,7 +60,7 @@ def put(
     """
     clean_name = clean(name, MAX_NAME)
     if clean_name is None:
-        raise ValueError("a stock entry needs a name")
+        raise InvalidInput("a stock entry needs a name")
     others = [e for e in kitchen.stock if name_key(e.name) != name_key(clean_name)]
     if len(others) >= limits.max_stock_items:
         raise LimitExceeded(f"stock full ({limits.max_stock_items} entries): remove what is finished first")

@@ -35,8 +35,32 @@ jobs:
       - name: Tests
         run: uv run --frozen python -m pytest -q
 
+  postgres:
+    # SQLite is the default; the same tests run against Postgres so `EMILE_DATABASE_URL` can point at one.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: emile
+          POSTGRES_PASSWORD: emile
+          POSTGRES_DB: emile
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U emile" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      EMILE_TEST_DATABASE_URL: postgresql+psycopg://emile:emile@127.0.0.1:5432/emile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --python 3.13
+      - name: Service tests on Postgres
+        run: uv run --frozen python -m pytest -q tests/service
+
   docker:
-    # `docker compose up` must work on a fresh machine: build the image and wait for /health.
+    # `docker compose up` must work on a fresh machine: build, wait for /health, create a key, call the API.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,6 +68,18 @@ jobs:
         run: |
           docker compose up -d --build --wait --wait-timeout 120
           curl -fsS http://127.0.0.1:18010/health
+      - name: Create an account in the container and use it
+        run: |
+          key=$(docker compose exec -T emile emile setup smoke --household Home | tail -1)
+          curl -fsS -H "Authorization: Bearer $key" -H "Content-Type: application/json" \
+            -d '{"items": [{"name": "Bananas", "qty": "7"}]}' http://127.0.0.1:18010/v1/lists
+          curl -fsS -X POST -H "Authorization: Bearer $key" http://127.0.0.1:18010/v1/lists/1/items/0/toggle
+          curl -fsS -H "Authorization: Bearer $key" http://127.0.0.1:18010/v1/stock | grep -q Bananas
+      - name: Data survives a restart (volume)
+        run: |
+          docker compose restart emile
+          docker compose up -d --wait --wait-timeout 60
+          docker compose exec -T emile emile households list | grep -q Home
       - name: Logs
         if: always()
         run: docker compose logs

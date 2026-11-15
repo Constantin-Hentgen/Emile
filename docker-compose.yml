@@ -6,8 +6,17 @@ services:
     # Each variable is interpolated from `.env` next to this file (docker compose) or from the Portainer stack UI.
     # An unset variable arrives empty and Emile uses its default (see .env.example).
     environment:
-      EMILE_LOG_LEVEL: ${EMILE_LOG_LEVEL:-INFO}
       EMILE_DATABASE_URL: ${EMILE_DATABASE_URL:-sqlite:////data/emile.db}
+      EMILE_AUTO_MIGRATE: ${EMILE_AUTO_MIGRATE:-true}
+      EMILE_ADMIN_KEY: ${EMILE_ADMIN_KEY:-}
+      EMILE_DEFAULT_TIMEZONE: ${EMILE_DEFAULT_TIMEZONE:-Europe/Paris}
+      EMILE_DEFAULT_LANGUAGE: ${EMILE_DEFAULT_LANGUAGE:-fr}
+      EMILE_DEFAULT_CURRENCY: ${EMILE_DEFAULT_CURRENCY:-€}
+      EMILE_MAX_LIST_ITEMS: ${EMILE_MAX_LIST_ITEMS:-60}
+      EMILE_MAX_STOCK_ITEMS: ${EMILE_MAX_STOCK_ITEMS:-120}
+      EMILE_MAX_KEEPS_DAYS: ${EMILE_MAX_KEEPS_DAYS:-60}
+      EMILE_ASK_GRACE_DAYS: ${EMILE_ASK_GRACE_DAYS:-3}
+      EMILE_LOG_LEVEL: ${EMILE_LOG_LEVEL:-INFO}
     ports:
       - "${EMILE_PUBLISHED_PORT:-18010}:8000"
     volumes:

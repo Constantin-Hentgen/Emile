@@ -25,15 +25,16 @@ as well behind a script, a home-automation flow or your own front end.
 ## Quick start
 
 ```sh
-git clone https://github.com/Constantin-Hentgen/Emile.git && cd emile
+git clone https://github.com/Constantin-Hentgen/Emile.git && cd Emile
 cp .env.example .env        # optional: every variable has a default
 docker compose up -d
-curl http://localhost:18010/health
+docker compose exec emile emile setup me --household Home   # prints an API key
+curl -H "Authorization: Bearer <key>" http://localhost:18010/v1/stock
 ```
 
-The API docs are served at `http://localhost:18010/docs`.
+Interactive API docs are served at `http://localhost:18010/docs`.
 
-For development, use `uv sync`, then `uv run --frozen python -m pytest -q`.
+For development, run `uv sync`, then `uv run --frozen python -m pytest -q`.
 
 ## Documentation
 

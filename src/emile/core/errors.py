@@ -23,3 +23,7 @@ class ItemNotFound(EmileError, LookupError):
 
 class LimitExceeded(EmileError, ValueError):
     """A configured size limit would be exceeded; nothing was changed."""
+
+
+class InvalidInput(EmileError, ValueError):
+    """The request makes no sense as given (an empty list, a nameless entry); nothing was changed."""
