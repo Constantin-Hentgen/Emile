@@ -25,13 +25,19 @@ jobs:
 
       # release-please can't update uv.lock, and pull requests opened with GITHUB_TOKEN don't trigger CI:
       # on the open release branch, sync the lockfile with the new version and run lint and tests here.
+      # The action reports the PR it just opened or updated. Right after creation the label search doesn't find it
+      # yet, so use that output first and the label search only when the action left the PR untouched.
       - name: Find the open release pull request
         id: pr
         env:
           GH_TOKEN: ${{ github.token }}
+          FROM_ACTION: ${{ steps.release.outputs.pr && fromJSON(steps.release.outputs.pr).headBranchName || '' }}
         run: |
-          branch=$(gh pr list -R "${{ github.repository }}" --state open --label "autorelease: pending" \
-            --json headRefName -q '.[0].headRefName')
+          branch="$FROM_ACTION"
+          if [ -z "$branch" ]; then
+            branch=$(gh pr list -R "${{ github.repository }}" --state open --label "autorelease: pending" \
+              --json headRefName -q '.[0].headRefName')
+          fi
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         if: ${{ steps.pr.outputs.branch != '' }}
