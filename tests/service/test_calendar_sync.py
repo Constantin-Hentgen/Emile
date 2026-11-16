@@ -387,6 +387,8 @@ def test_the_python_client_covers_the_calendar(client, alice, server):
     assert emile.calendar() is None
     assert emile.set_calendar(URL, "me", PASSWORD).url == URL
     assert emile.calendar().last_sync_at is None
+    assert emile.set_calendar(URL, "me", PASSWORD, mode="tasks").mode == "tasks"
+    assert emile.set_calendar(URL, "me", PASSWORD).mode == "event"
     lst = emile.create_list([{"name": "Riz"}], start_time=datetime.datetime(2026, 11, 14, 10, 30), duration_minutes=30)
     assert lst.event_end - lst.event_start == D(minutes=30)
     moved = emile.set_slot(lst.id, datetime.datetime(2026, 11, 15, 10, 0))
