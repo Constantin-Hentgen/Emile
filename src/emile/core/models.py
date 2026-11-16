@@ -7,7 +7,9 @@ memory or in a JSON file. Rules live in :mod:`emile.core.shopping` and :mod:`emi
 import datetime
 from enum import StrEnum
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, computed_field
+
+from emile.core.quantity import Measure, parse
 
 # Inputs come from clients (often an LLM's tool call): accept Bob's field names as aliases so its tool arguments
 # can be forwarded unchanged (`quantity`, `keeps_days`).
@@ -39,6 +41,13 @@ class ListItem(BaseModel):
     keeps: int | None = None
     """Days the product keeps once bought (perishables only)."""
     done: bool = False
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def measure(self) -> Measure | None:
+        """``qty`` read as a structured quantity, when it is one of the known forms (derived, never stored)."""
+        quantity = parse(self.qty)
+        return quantity.measure() if quantity else None
 
 
 class ShoppingList(BaseModel):
@@ -87,6 +96,13 @@ class StockEntry(BaseModel):
     boxes: bool = False
     """Batch-cooked dish stored in boxes: ``qty`` counts the boxes."""
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def measure(self) -> Measure | None:
+        """``qty`` read as a structured quantity, when it is one of the known forms (derived, never stored)."""
+        quantity = parse(self.qty)
+        return quantity.measure() if quantity else None
+
 
 class Kitchen(BaseModel):
     """Everything the rules need for one household, including the id counters (ids are never reused)."""
@@ -123,12 +139,17 @@ class StockAdd(BaseModel):
 
 
 class StockRemove(BaseModel):
-    """Something finished, thrown away or used. With ``qty_left``, some is left: only the quantity changes."""
+    """Something finished, thrown away or used.
+
+    Without a quantity the entry leaves the stock. ``qty_left`` says what is left (the quantity is replaced);
+    ``qty_used`` says what was used (subtracted from the entry, which leaves the stock when nothing is left).
+    """
 
     model_config = _INPUT
 
     name: str
     qty_left: str | None = None
+    qty_used: str | None = Field(default=None, validation_alias=AliasChoices("qty_used", "used"))
 
 
 # --- results --------------------------------------------------------------------------------------------------
