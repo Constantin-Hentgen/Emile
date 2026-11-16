@@ -17,7 +17,7 @@ from typing import Literal
 
 from sqlalchemy import select
 
-from emile.core import Kitchen, ShoppingList, ical, render, shopping
+from emile.core import DEFAULT_LIMITS, EmileError, Kitchen, Limits, ShoppingList, ical, render, shopping, tasks
 from emile.service import repository
 from emile.service.db import Database
 from emile.service.remote import CalendarRemote, RemoteError, RemoteEvent, RemoteFactory
@@ -52,6 +52,8 @@ class SyncOutcome:
     detail: str | None = None
     event_uid: str | None = None
     removed: int = 0
+    pulled: int = 0
+    pushed: int = 0
 
 
 @dataclass(frozen=True)
@@ -116,6 +118,9 @@ def push(remote: CalendarRemote, want: Desired, now: datetime.datetime) -> int:
         if other.uid != want.uid and other.end > now:  # past ones stay: they are the history
             remote.delete(other.uid)
             removed += 1
+    for task in remote.tasks():  # the household switched from tasks to an event: its old tasks go
+        remote.delete_task(task.uid)
+        removed += 1
     return removed
 
 
@@ -149,17 +154,21 @@ def sync_household(
     now: datetime.datetime,
     *,
     force: bool = False,
+    limits: Limits = DEFAULT_LIMITS,
 ) -> SyncOutcome:
     """Bring the calendar in line with the current list. Idempotent; ``force`` re-checks the calendar even when
-    nothing changed locally (to repair an event someone deleted there)."""
+    nothing changed locally (to repair an event someone deleted there). In tasks mode the sync goes both ways."""
     with _locks[household_id]:
-        return _sync(db, vault, factory, household_id, now, force)
+        config = _config(db, household_id)
+        if config.mode == "tasks":
+            return _sync_tasks(db, vault, factory, config, now, limits)
+        return _sync(db, vault, factory, config, now, force)
 
 
 def _sync(
-    db: Database, vault: Vault, factory: RemoteFactory, household_id: int, now: datetime.datetime, force: bool
+    db: Database, vault: Vault, factory: RemoteFactory, config: CalendarConfig, now: datetime.datetime, force: bool
 ) -> SyncOutcome:
-    config = _config(db, household_id)
+    household_id = config.household_id
     snapshot: tuple[ShoppingList | None, HouseholdInfo] = repository.read(
         db, household_id, lambda kitchen, info: (kitchen.current_list, info)
     )
@@ -191,8 +200,99 @@ def _sync(
     return SyncOutcome("synced", "the list changed during the sync: it will be synced again", want.uid, removed)
 
 
+def _load_state(config: CalendarConfig) -> dict[str, bool]:
+    try:
+        raw = json.loads(config.synced_state or "{}")
+    except ValueError:
+        return {}
+    return {str(k): bool(v) for k, v in raw.items()} if isinstance(raw, dict) else {}
+
+
+def _sync_tasks(
+    db: Database, vault: Vault, factory: RemoteFactory, config: CalendarConfig, now: datetime.datetime, limits: Limits
+) -> SyncOutcome:
+    """One task per item, merged in both directions (see :mod:`emile.core.tasks` for the conflict rule)."""
+    household_id = config.household_id
+
+    def with_token(kitchen: Kitchen, info: HouseholdInfo) -> tuple[ShoppingList, HouseholdInfo] | None:
+        current = kitchen.current_list
+        if current is None or not current.items:
+            return None
+        if current.event_uid is None:  # the list's identity across edits: every task UID derives from it
+            shopping.attach_event(kitchen, current.id, ical.new_uid(), current.event_start, current.event_end)
+        return current.model_copy(deep=True), info
+
+    started = repository.mutate(db, household_id, with_token)
+    if started is None:
+        return SyncOutcome("skipped", "no shopping list")
+    lst, __ = started
+    token = lst.event_uid or ""
+    try:
+        remote = factory(config.url, config.username, vault.decrypt(config.password_encrypted))
+        found = {t.uid: t for t in remote.tasks()}
+        plan = tasks.plan(lst, token, found, _load_state(config))
+
+        def pull(kitchen: Kitchen, info: HouseholdInfo) -> tuple[ShoppingList, int] | None:
+            current = kitchen.current_list
+            if current is None or current.event_uid != token:
+                return None  # the list was replaced meanwhile: this pass is moot
+            changed = 0
+            for index, uid in enumerate(tasks.item_uids(current, token)):
+                wanted = plan.pull.get(uid)
+                if wanted is not None and current.items[index].done != wanted:
+                    shopping.toggle(kitchen, current.id, index, today=info.today(now), limits=limits)
+                    changed += 1
+            return current.model_copy(deep=True), changed
+
+        pulled = repository.mutate(db, household_id, pull)
+        if pulled is None:
+            return SyncOutcome("skipped", "the list was replaced during the sync: it will be synced again")
+        final, pulled_count = pulled
+        items = dict(zip(tasks.item_uids(final, token), final.items, strict=True))
+        pushed = 0
+        for uid in plan.push:
+            if (item := items.get(uid)) is not None:
+                summary, category = tasks.wanted(item)
+                sequence = found[uid].sequence + 1 if uid in found else 0
+                ics = tasks.build_todo(uid, summary, category, item.done, now=now, sequence=sequence)
+                remote.put_task(uid, ics)
+                pushed += 1
+        if pushed:
+            written = {t.uid: t for t in remote.tasks()}
+            for uid in plan.push:
+                item = items.get(uid)
+                task = written.get(uid)
+                if item is not None and (task is None or task.done != item.done):
+                    raise RemoteError("read-back: the calendar does not hold the task that was just written")
+        removed = 0
+        for uid in plan.delete:
+            remote.delete_task(uid)
+            removed += 1
+        for event in remote.shopping_events():  # the household switched from an event to tasks: upcoming ones go
+            if event.end > now:
+                remote.delete(event.uid)
+                removed += 1
+    except (RemoteError, VaultError) as e:
+        _record(db, household_id, now=now, digest=None, error=str(e))
+        logger.warning("household %s: calendar sync failed: %s", household_id, e)
+        raise SyncError(str(e)) from None
+    except EmileError as e:  # e.g. the stock is full: a task ticked in the calendar cannot enter it
+        _record(db, household_id, now=now, digest=None, error=str(e))
+        raise SyncError(str(e)) from None
+    state = {uid: item.done for uid, item in items.items()}
+    with db.session() as session:
+        row = session.get(CalendarConfig, household_id)
+        if row is not None:
+            row.synced_state = json.dumps(state)
+    _record(db, household_id, now=now, digest=None, error=None)
+    changed = bool(pulled_count or pushed or removed)
+    return SyncOutcome(
+        "synced" if changed else "unchanged", event_uid=token, removed=removed, pulled=pulled_count, pushed=pushed
+    )
+
+
 def sync_all(
-    db: Database, vault: Vault, factory: RemoteFactory, now: datetime.datetime
+    db: Database, vault: Vault, factory: RemoteFactory, now: datetime.datetime, limits: Limits = DEFAULT_LIMITS
 ) -> dict[int, SyncOutcome | str]:
     """The background pass: every household with a calendar; one failing never stops the others."""
     with db.session() as session:
@@ -200,7 +300,7 @@ def sync_all(
     results: dict[int, SyncOutcome | str] = {}
     for household_id in ids:
         try:
-            results[household_id] = sync_household(db, vault, factory, household_id, now)
+            results[household_id] = sync_household(db, vault, factory, household_id, now, limits=limits)
         except (SyncError, NotConfigured) as e:
             results[household_id] = str(e)
     return results

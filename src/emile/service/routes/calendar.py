@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from emile.schemas import CalendarOut, CalendarSet, SyncResult
 from emile.service import sync
 from emile.service.db import Database
-from emile.service.deps import DbDep, HouseholdDep, NowDep
+from emile.service.deps import DbDep, HouseholdDep, LimitsDep, NowDep
 from emile.service.remote import RemoteFactory
 from emile.service.tables import CalendarConfig
 from emile.service.vault import Vault
@@ -35,7 +35,7 @@ def _out(config: CalendarConfig) -> CalendarOut:
     return CalendarOut(
         url=config.url,
         username=config.username,
-        mode="event",
+        mode=config.mode,
         last_sync_at=config.last_sync_at,
         last_error=config.last_error,
     )
@@ -70,6 +70,7 @@ def set_calendar(
         config.url, config.username, config.mode = body.url, body.username, body.mode
         config.password_encrypted = vault.encrypt(body.password)
         config.synced_digest = None
+        config.synced_state = None
         config.last_error = None
         session.flush()
         return _out(config)
@@ -93,11 +94,13 @@ def delete_calendar(db: DbDep, household: HouseholdDep) -> Response:
 
 
 @router.post("/v1/sync")
-def sync_now(db: DbDep, household: HouseholdDep, now: NowDep, vault: VaultDep, factory: FactoryDep) -> SyncResult:
+def sync_now(
+    db: DbDep, household: HouseholdDep, now: NowDep, vault: VaultDep, factory: FactoryDep, limits: LimitsDep
+) -> SyncResult:
     """Sync the shopping list to the calendar now, re-checking the calendar even if nothing changed here.
 
     The background loop does the same every `EMILE_SYNC_INTERVAL` seconds, so calling this is only needed to see
     the result at once (or when the loop is off). 502 `calendar_error` if the calendar server fails.
     """
-    outcome = sync.sync_household(db, vault, factory, household.id, now, force=True)
+    outcome = sync.sync_household(db, vault, factory, household.id, now, force=True, limits=limits)
     return SyncResult(**outcome.__dict__)

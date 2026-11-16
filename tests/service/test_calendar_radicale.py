@@ -9,7 +9,7 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
-from emile.core import ical
+from emile.core import ical, tasks
 from emile.service.app import create_app
 from emile.service.remote import CaldavRemote, caldav_factory
 from emile.service.settings import Settings
@@ -78,3 +78,40 @@ def test_full_sync_replaces_the_list_event_on_a_real_server(calendar_url, tmp_pa
         assert (second["removed"], second["event_uid"] != first["event_uid"]) == (1, True)
         remote = CaldavRemote(calendar_url, USER, PASSWORD)
         assert [e.uid for e in remote.shopping_events()] == [second["event_uid"]]
+
+
+def test_tasks_round_trip_and_two_way_ticking_on_a_real_server(calendar_url, tmp_path, make_account_for):
+    settings = Settings(
+        _env_file=None,
+        database_url=f"sqlite:///{tmp_path}/emile.db",
+        admin_key=ADMIN_KEY,
+        secret_key="integration-secret-0123456789abcdef",
+        sync_interval=0,
+    )
+    remote = CaldavRemote(calendar_url, USER, PASSWORD)
+    with TestClient(create_app(settings, remote_factory=caldav_factory)) as client:
+        client.headers.update(make_account_for(client.app).headers)
+        res = client.put(
+            "/v1/calendar", json={"url": calendar_url, "username": USER, "password": PASSWORD, "mode": "tasks"}
+        )
+        assert res.status_code == 200, res.text
+        client.post(
+            "/v1/lists", json={"items": [{"name": "Bananes", "qty": "7", "aisle": "🥬 Fruits"}, {"name": "Lait"}]}
+        )
+        assert client.post("/v1/sync").json()["pushed"] == 2
+        found = {t.summary: t for t in remote.tasks()}
+        assert (found["Bananes — 7"].category, found["Bananes — 7"].done) == ("🥬 Fruits", False)
+
+        # the phone completes "Lait": same UID, STATUS:COMPLETED
+        milk = found["Lait"]
+        now = datetime.datetime.now(datetime.UTC)
+        remote.put_task(milk.uid, tasks.build_todo(milk.uid, "Lait", None, True, now=now, sequence=milk.sequence + 1))
+        assert client.post("/v1/sync").json()["pulled"] == 1
+        assert [i["done"] for i in client.get("/v1/lists/current").json()["items"]] == [False, True]
+        assert [e["name"] for e in client.get("/v1/stock").json()["entries"]] == ["Lait"]
+
+        # the API ticks "Bananes": its task becomes completed
+        client.post("/v1/lists/1/items/0/toggle")
+        assert client.post("/v1/sync").json()["pushed"] == 1
+        assert all(t.done for t in remote.tasks())
+        assert client.post("/v1/sync").json()["status"] == "unchanged"
