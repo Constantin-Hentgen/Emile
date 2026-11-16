@@ -134,12 +134,10 @@ def test_the_page_is_static_and_locked_down(client, link):
     assert "innerHTML" not in res.text  # item names are only ever inserted as text
 
 
-def test_the_page_can_be_turned_off(settings, clock, make_account_for):
+def test_the_page_can_be_turned_off(database_url, clock, make_account_for):
     from fastapi.testclient import TestClient
 
-    off = create_app(
-        Settings(_env_file=None, database_url=settings.database_url + "-off", shop_page=False), clock=clock
-    )
+    off = create_app(Settings(_env_file=None, database_url=database_url, shop_page=False), clock=clock)
     with TestClient(off) as client:
         account = make_account_for(off)
         assert client.get("/shop").status_code == 404
