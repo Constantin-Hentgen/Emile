@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/Constantin-Hentgen/Emile/compare/v0.3.0...v0.4.0) (2026-11-16)
+
+
+### Added
+
+* **caldav:** sync the shopping list to a CalDAV calendar as one event ([#35](https://github.com/Constantin-Hentgen/Emile/issues/35)) ([ef9dbae](https://github.com/Constantin-Hentgen/Emile/commit/ef9dbaeab26d9a50bae9a70e9e3c121d1640bd80))
+* **caldav:** tasks mode with one task per item, ticked in both directions ([#36](https://github.com/Constantin-Hentgen/Emile/issues/36)) ([ccbab5c](https://github.com/Constantin-Hentgen/Emile/commit/ccbab5cb43b6b09a244e659f4abe55385930a291))
+* recipe sources (Wikibooks) and Bob state import ([#33](https://github.com/Constantin-Hentgen/Emile/issues/33)) ([c582660](https://github.com/Constantin-Hentgen/Emile/commit/c58266016d78ad9dff080c0009325f3a44be1ca0))
+
 ## [0.3.0](https://github.com/Constantin-Hentgen/Emile/compare/v0.2.0...v0.3.0) (2026-11-15)
 
 
