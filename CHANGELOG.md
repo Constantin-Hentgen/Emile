@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/Constantin-Hentgen/Emile/compare/v0.4.0...v0.4.1) (2026-11-16)
+
+
+### Fixed
+
+* **client:** set_calendar takes the sync mode ([#38](https://github.com/Constantin-Hentgen/Emile/issues/38)) ([c710998](https://github.com/Constantin-Hentgen/Emile/commit/c71099896944127299559db0310be59cf7b2ff9d))
+
 ## [0.4.0](https://github.com/Constantin-Hentgen/Emile/compare/v0.3.0...v0.4.0) (2026-11-16)
 
 
