@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     http_timeout: float = Field(default=8.0, gt=0, le=120)
     """Timeout (seconds) of outgoing HTTP requests (recipe sources)."""
 
+    shop_page: bool = True
+    """Serve the mobile shop page and its `/v1/shop` API (ticking the list with a revocable link)."""
+
     secret_key: SecretStr | None = None
     """Encrypts stored secrets (CalDAV passwords). Without it, calendar sync cannot be configured."""
     sync_interval: int = Field(default=60, ge=0, le=86400)

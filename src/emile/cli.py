@@ -1,4 +1,4 @@
-"""``emile`` command line: run the server, migrate the database, manage users, households and API keys.
+"""``emile`` command line: run the server, migrate the database, manage users, households, API keys and shop links.
 
 In Docker: ``docker exec emile emile setup bob --household Home`` creates a user, a household and an API key.
 """
@@ -38,6 +38,15 @@ def main(argv: Sequence[str] | None = None) -> None:
     keys.add_parser("revoke", help="revoke a key").add_argument("key_id", type=int)
     keys.add_parser("list", help="list keys (never their secrets)")
 
+    shop = sub.add_parser("shop-link", help="links that open the mobile shop page").add_subparsers(
+        dest="action", required=True
+    )
+    shop_create = shop.add_parser("create", help="create a shop link (printed once)")
+    shop_create.add_argument("household_id", type=int)
+    shop_create.add_argument("--label", help="what the link is for, e.g. 'Anna's phone'")
+    shop.add_parser("list", help="list shop links (never their secrets)")
+    shop.add_parser("revoke", help="revoke a shop link").add_argument("link_id", type=int)
+
     households = sub.add_parser("households", help="households").add_subparsers(dest="action", required=True)
     create_household = households.add_parser("create", help="create a household")
     create_household.add_argument("name")
@@ -70,6 +79,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         ("keys", "create"): _keys_create,
         ("keys", "revoke"): _keys_revoke,
         ("keys", "list"): _keys_list,
+        ("shop-link", "create"): _shop_create,
+        ("shop-link", "list"): _shop_list,
+        ("shop-link", "revoke"): _shop_revoke,
         ("households", "create"): _households_create,
         ("households", "add-member"): _households_add_member,
         ("households", "list"): _households_list,
@@ -171,6 +183,41 @@ def _keys_list(session: "Session", args: Any, settings: "Settings", now: datetim
             "revoked" if key.revoked_at else f"last used {key.last_used_at:%Y-%m-%d}" if key.last_used_at else "unused"
         )
         print(f"{key.id}\t{key.prefix}…\t{user}\t{key.label or ''}\t{state}")
+
+
+def _shop_create(session: "Session", args: Any, settings: "Settings", now: datetime.datetime) -> None:
+    from emile.service import accounts
+
+    household = accounts.find_household(session, args.household_id)
+    link, secret = accounts.create_shop_link(session, household.id, args.label, now)
+    print(f"shop link {link.id} for household {household.id}. Open this on the phone (it is not stored):")
+    print(f"  <server address>/shop#{secret}")
+
+
+def _shop_list(session: "Session", args: Any, settings: "Settings", now: datetime.datetime) -> None:
+    from sqlalchemy import select
+
+    from emile.service.tables import ShopLink
+
+    for link in session.scalars(select(ShopLink).order_by(ShopLink.id)):
+        state = (
+            "revoked"
+            if link.revoked_at
+            else f"last used {link.last_used_at:%Y-%m-%d}"
+            if link.last_used_at
+            else "unused"
+        )
+        print(f"{link.id}\t{link.prefix}…\thousehold {link.household_id}\t{link.label or ''}\t{state}")
+
+
+def _shop_revoke(session: "Session", args: Any, settings: "Settings", now: datetime.datetime) -> None:
+    from emile.service.tables import ShopLink
+
+    link = session.get(ShopLink, args.link_id)
+    if link is None:
+        raise SystemExit(f"no shop link {args.link_id}")
+    link.revoked_at = link.revoked_at or now
+    print(f"shop link {link.id} ({link.prefix}…) revoked")
 
 
 def _new_household(
