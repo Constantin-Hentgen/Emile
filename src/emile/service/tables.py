@@ -123,6 +123,8 @@ class CalendarConfig(Base):
     mode: Mapped[str] = mapped_column(String(10), default="event")
     synced_digest: Mapped[str | None] = mapped_column(String(64))
     """Fingerprint of what was last written to the calendar; the sync is skipped while nothing changed."""
+    synced_state: Mapped[str | None] = mapped_column(Text)
+    """Tasks mode: JSON of each task's state at the last sync (the base of the two-way merge)."""
     last_sync_at: Mapped[datetime.datetime | None] = mapped_column(UTCDateTime)
     last_error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime.datetime] = mapped_column(UTCDateTime)

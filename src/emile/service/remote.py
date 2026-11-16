@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from emile.core import ical
+from emile.core.tasks import RemoteTask
 
 
 class RemoteError(Exception):
@@ -41,6 +42,14 @@ class CalendarRemote(Protocol):
 
     def delete(self, uid: str) -> None: ...
 
+    def tasks(self) -> list[RemoteTask]:
+        """Every task (completed ones included) written by Emile or the client it takes over from."""
+
+    def put_task(self, uid: str, ics: str) -> None:
+        """Create the task, or replace it if the UID exists."""
+
+    def delete_task(self, uid: str) -> None: ...
+
 
 type RemoteFactory = Callable[[str, str, str], CalendarRemote]
 """``(url, username, password) -> remote``; the app holds one, tests replace it."""
@@ -70,6 +79,29 @@ def parse_event(data: str) -> RemoteEvent | None:
                 sequence=int(comp.get("SEQUENCE", 0) or 0),
             )
     except (ValueError, KeyError, TypeError):
+        return None
+    return None
+
+
+def parse_task(data: str) -> RemoteTask | None:
+    """The first VTODO of an iCalendar text, or ``None``."""
+    from icalendar import Calendar
+
+    try:
+        for comp in Calendar.from_ical(data).walk("VTODO"):
+            categories = comp.get("CATEGORIES")
+            names = [str(c) for c in categories.cats] if categories is not None else []
+            status = str(comp.get("STATUS", "")).upper()
+            marked = comp.get("COMPLETED") is not None or comp.get("PERCENT-COMPLETE") == 100
+            done = status == "COMPLETED" or (not status and marked)  # an explicit STATUS wins over the other hints
+            return RemoteTask(
+                uid=str(comp.get("UID", "")),
+                summary=str(comp.get("SUMMARY", "")),
+                category=names[0] if names else None,
+                done=done,
+                sequence=int(comp.get("SEQUENCE", 0) or 0),
+            )
+    except (ValueError, KeyError, TypeError, AttributeError):
         return None
     return None
 
@@ -137,6 +169,40 @@ class CaldavRemote:
 
     def delete(self, uid: str) -> None:
         obj = self._object(uid)
+        if obj is None:
+            return
+        try:
+            obj.delete()
+        except Exception as e:
+            raise RemoteError(_describe(e)) from None
+
+    def _todo(self, uid: str) -> Any:
+        try:
+            return self._calendar.get_todo_by_uid(uid)
+        except Exception as e:
+            if type(e).__name__ == "NotFoundError":
+                return None
+            raise RemoteError(_describe(e)) from None
+
+    def tasks(self) -> list[RemoteTask]:
+        found: list[RemoteTask] = []
+        try:
+            for obj in self._calendar.get_todos(include_completed=True):
+                task = parse_task(obj.data)
+                if task is not None and ical.is_shopping_uid(task.uid):
+                    found.append(task)
+        except Exception as e:
+            raise RemoteError(_describe(e)) from None
+        return found
+
+    def put_task(self, uid: str, ics: str) -> None:
+        try:
+            self._calendar.save_todo(ics)
+        except Exception as e:
+            raise RemoteError(_describe(e)) from None
+
+    def delete_task(self, uid: str) -> None:
+        obj = self._todo(uid)
         if obj is None:
             return
         try:

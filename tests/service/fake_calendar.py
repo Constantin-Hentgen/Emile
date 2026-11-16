@@ -2,8 +2,9 @@
 
 import datetime
 
-from emile.core import ical
-from emile.service.remote import CalendarRemote, RemoteError, RemoteEvent, parse_event
+from emile.core import ical, tasks
+from emile.core.tasks import RemoteTask
+from emile.service.remote import CalendarRemote, RemoteError, RemoteEvent, parse_event, parse_task
 
 
 class FakeServer:
@@ -30,6 +31,18 @@ class FakeServer:
 
     def uids(self, url: str) -> set[str]:
         return set(self.calendars[url])
+
+    def tasks(self, url: str) -> dict[str, RemoteTask]:
+        found = (parse_task(ics) for ics in self.calendars[url].values())
+        return {t.uid: t for t in found if t is not None}
+
+    def complete(self, url: str, uid: str, done: bool = True) -> None:
+        """What a phone does when the person ticks (or unticks) a task."""
+        task = self.tasks(url)[uid]
+        now = datetime.datetime(2026, 11, 10, tzinfo=datetime.UTC)
+        self.calendars[url][uid] = tasks.build_todo(
+            uid, task.summary, task.category, done, now=now, sequence=task.sequence + 1
+        )
 
     def event(self, url: str, uid: str) -> RemoteEvent:
         event = parse_event(self.calendars[url][uid])
@@ -72,4 +85,19 @@ class FakeRemote:
 
     def delete(self, uid: str) -> None:
         self.server.calls.append("delete")
+        self._store().pop(uid, None)
+
+    def tasks(self) -> list[RemoteTask]:
+        self.server.calls.append("tasks")
+        found = (parse_task(ics) for ics in self._store().values())
+        return [t for t in found if t is not None and ical.is_shopping_uid(t.uid)]
+
+    def put_task(self, uid: str, ics: str) -> None:
+        self.server.calls.append("put_task")
+        store = self._store()
+        if not self.server.drop_writes:
+            store[uid] = ics
+
+    def delete_task(self, uid: str) -> None:
+        self.server.calls.append("delete_task")
         self._store().pop(uid, None)

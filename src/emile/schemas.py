@@ -286,8 +286,9 @@ class CalendarSet(BaseModel):
     url: str = Field(min_length=8, max_length=500, description="URL of the calendar collection (http or https).")
     username: str = Field(default="", max_length=255)
     password: str = Field(default="", max_length=500)
-    mode: Literal["event"] = "event"
-    """``event``: one event with the checklist in its description."""
+    mode: Literal["event", "tasks"] = "event"
+    """``event``: one event with the checklist in its description. ``tasks``: one task per item, ticked in both
+    directions (Nextcloud Tasks, Apple Reminders, Tasks.org)."""
 
     @field_validator("url")
     @classmethod
@@ -301,7 +302,7 @@ class CalendarSet(BaseModel):
 class CalendarOut(BaseModel):
     url: str
     username: str
-    mode: Literal["event"]
+    mode: Literal["event", "tasks"]
     last_sync_at: datetime.datetime | None
     last_error: str | None
     """The last sync's failure, cleared by the next success."""
@@ -313,7 +314,11 @@ class SyncResult(BaseModel):
     detail: str | None = None
     event_uid: str | None = None
     removed: int = 0
-    """Older upcoming shopping events replaced by this one."""
+    """Older upcoming shopping events (or, in tasks mode, tasks no longer on the list) removed from the calendar."""
+    pulled: int = 0
+    """Tasks mode: items ticked or unticked here because their task changed in the calendar."""
+    pushed: int = 0
+    """Tasks mode: tasks created or rewritten from the list."""
 
 
 # --- import ---------------------------------------------------------------------------------------------------

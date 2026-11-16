@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from emile.core import ical
+from emile.core import ical, tasks
 from emile.service import sync
 from emile.service.app import create_app, sync_loop
 from emile.service.settings import Settings
@@ -398,3 +398,175 @@ def test_the_python_client_covers_the_calendar(client, alice, server):
     assert exc.value.error == "calendar_error"
     emile.remove_calendar()
     assert emile.calendar() is None
+
+
+# --- tasks mode: one task per item, ticked in both directions ---------------------------------------------------
+
+
+def tasks_mode(api):
+    res = connect(api, mode="tasks")
+    assert (res.status_code, res.json()["mode"]) == (200, "tasks")
+
+
+def stock_names(api):
+    return [e["name"] for e in api.get("/v1/stock").json()["entries"]]
+
+
+def task_named(server, name):
+    return next(t for t in server.tasks(URL).values() if t.summary.startswith(name))
+
+
+def test_one_task_per_item_with_the_aisle_as_category(api, server):
+    tasks_mode(api)
+    new_list(api)
+    res = api.post("/v1/sync").json()
+    assert (res["status"], res["pushed"], res["pulled"]) == ("synced", 2, 0)
+    found = server.tasks(URL)
+    assert sorted((t.summary, t.category, t.done) for t in found.values()) == [
+        ("Bananes — 7", "🥬 Fruits", False),
+        ("Lait", "🥛 Crèmerie", False),
+    ]
+    assert all(uid.endswith(ical.UID_SUFFIX) for uid in found)
+    assert [u for u in server.uids(URL) if u not in found] == []  # no event in tasks mode
+    again = api.post("/v1/sync").json()
+    assert (again["status"], again["pushed"], again["pulled"]) == ("unchanged", 0, 0)
+
+
+def test_a_task_completed_on_the_phone_ticks_the_item_and_fills_the_stock(api, server):
+    tasks_mode(api)
+    new_list(api)
+    api.post("/v1/sync")
+    server.complete(URL, task_named(server, "Lait").uid)
+    res = api.post("/v1/sync").json()
+    assert (res["pulled"], res["pushed"]) == (1, 0)
+    items = {i["name"]: i["done"] for i in api.get("/v1/lists/current").json()["items"]}
+    assert items == {"Bananes": False, "Lait": True}
+    assert stock_names(api) == ["Lait"]
+    assert api.post("/v1/sync").json()["status"] == "unchanged"
+
+
+def test_unticking_on_the_phone_takes_the_item_out_of_the_stock(api, server):
+    tasks_mode(api)
+    lst = new_list(api)
+    api.post(f"/v1/lists/{lst['id']}/items/1/toggle")
+    api.post("/v1/sync")
+    assert task_named(server, "Lait").done
+    server.complete(URL, task_named(server, "Lait").uid, done=False)
+    assert api.post("/v1/sync").json()["pulled"] == 1
+    assert stock_names(api) == []
+
+
+def test_an_item_ticked_through_the_api_completes_its_task(api, server):
+    tasks_mode(api)
+    lst = new_list(api)
+    api.post("/v1/sync")
+    api.post(f"/v1/lists/{lst['id']}/items/0/toggle")
+    res = api.post("/v1/sync").json()
+    assert (res["pushed"], res["pulled"]) == (1, 0)
+    assert task_named(server, "Bananes").done and not task_named(server, "Lait").done
+
+
+def test_both_sides_changing_different_items_merge(api, server):
+    tasks_mode(api)
+    lst = new_list(api)
+    api.post("/v1/sync")
+    api.post(f"/v1/lists/{lst['id']}/items/0/toggle")  # Bananes bought in the shop, through the API
+    server.complete(URL, task_named(server, "Lait").uid)  # Lait ticked on the phone
+    res = api.post("/v1/sync").json()
+    assert (res["pushed"], res["pulled"]) == (1, 1)
+    assert [i["done"] for i in api.get("/v1/lists/current").json()["items"]] == [True, True]
+    assert all(t.done for t in server.tasks(URL).values())
+
+
+def test_when_the_record_is_lost_the_list_wins(api, server, app):
+    tasks_mode(api)
+    new_list(api)
+    api.post("/v1/sync")
+    server.complete(URL, task_named(server, "Lait").uid)
+    with app.state.db.session() as session:
+        session.scalars(select(CalendarConfig)).one().synced_state = None  # e.g. restored from an old backup
+    res = api.post("/v1/sync").json()
+    assert (res["pulled"], res["pushed"]) == (0, 1)
+    assert not task_named(server, "Lait").done
+    assert stock_names(api) == []
+
+
+def test_editing_by_name_keeps_the_other_tasks_and_replaces_the_removed_ones(api, server):
+    tasks_mode(api)
+    new_list(api)
+    api.post("/v1/sync")
+    banana = task_named(server, "Bananes").uid
+    api.patch("/v1/lists/current", json={"remove": ["lait"], "add": [{"name": "Pain", "aisle": "🥖"}]})
+    res = api.post("/v1/sync").json()
+    assert (res["pushed"], res["removed"]) == (1, 1)
+    assert sorted(t.summary for t in server.tasks(URL).values()) == ["Bananes — 7", "Pain"]
+    assert task_named(server, "Bananes").uid == banana
+
+
+def test_a_new_list_replaces_all_the_tasks(api, server):
+    tasks_mode(api)
+    new_list(api)
+    api.post("/v1/sync")
+    old = set(server.tasks(URL))
+    server.add_foreign_event(URL, "dentist@example.org", SAT_UTC)
+    api.post("/v1/lists", json={"items": [{"name": "Riz"}]})
+    res = api.post("/v1/sync").json()
+    assert (res["pushed"], res["removed"]) == (1, 2)
+    assert not old & set(server.tasks(URL))
+    assert "dentist@example.org" in server.uids(URL)  # the household's own entries are never touched
+
+
+def test_a_task_deleted_in_the_calendar_is_written_again(api, server):
+    tasks_mode(api)
+    new_list(api)
+    api.post("/v1/sync")
+    del server.calendars[URL][task_named(server, "Lait").uid]
+    assert api.post("/v1/sync").json()["pushed"] == 1
+    assert len(server.tasks(URL)) == 2
+
+
+def test_switching_between_event_and_tasks_cleans_up_after_itself(api, server):
+    connect(api)
+    new_list(api)
+    api.post("/v1/sync")
+    assert len(shopping_uids(server)) == 1
+    tasks_mode(api)
+    api.post("/v1/sync")
+    assert len(server.tasks(URL)) == 2 and len(server.calendars[URL]) == 2  # the event is gone
+    connect(api)  # back to one event
+    res = api.post("/v1/sync").json()
+    assert res["status"] == "synced" and server.tasks(URL) == {}
+    assert len(server.calendars[URL]) == 1
+
+
+def test_bobs_old_tasks_are_taken_over_too(api, server):
+    tasks_mode(api)
+    new_list(api)
+    server.calendars[URL]["old@running-coach-shopping"] = tasks.build_todo(
+        "old@running-coach-shopping", "Riz", None, False, now=SAT_UTC
+    )
+    server.add_foreign_event(URL, "run@running-coach", SAT_UTC)
+    api.post("/v1/sync")
+    assert "old@running-coach-shopping" not in server.uids(URL)
+    assert "run@running-coach" in server.uids(URL)
+
+
+def test_a_full_stock_blocks_pulling_a_tick_and_says_so(api, server, app):
+    tasks_mode(api)
+    new_list(api)
+    api.post("/v1/sync")
+    app.state.settings.max_stock_items = 1
+    api.post("/v1/stock", json={"add": [{"name": "Riz"}]})
+    server.complete(URL, task_named(server, "Lait").uid)
+    res = api.post("/v1/sync")
+    assert (res.status_code, res.json()["error"]) == (502, "calendar_error")
+    assert "stock full" in api.get("/v1/calendar").json()["last_error"]
+
+
+def test_a_dropped_task_write_is_caught_by_the_read_back(api, server):
+    tasks_mode(api)
+    new_list(api)
+    server.drop_writes = True
+    res = api.post("/v1/sync")
+    assert (res.status_code, res.json()["error"]) == (502, "calendar_error")
+    assert "read-back" in res.json()["detail"]

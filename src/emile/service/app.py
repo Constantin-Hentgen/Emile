@@ -42,7 +42,12 @@ async def sync_loop(app: FastAPI, interval: int) -> None:
         await asyncio.sleep(interval)
         try:
             results = await asyncio.to_thread(
-                sync.sync_all, app.state.db, app.state.vault, app.state.remote_factory, app.state.clock()
+                sync.sync_all,
+                app.state.db,
+                app.state.vault,
+                app.state.remote_factory,
+                app.state.clock(),
+                app.state.settings.limits,
             )
             for household_id, result in results.items():
                 if isinstance(result, str):
