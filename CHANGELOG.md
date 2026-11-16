@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/Constantin-Hentgen/Emile/compare/v0.4.1...v0.5.0) (2026-11-16)
+
+
+### Added
+
+* **core:** structured quantities with unit normalisation and partial consumption ([#41](https://github.com/Constantin-Hentgen/Emile/issues/41)) ([a61ec6f](https://github.com/Constantin-Hentgen/Emile/commit/a61ec6f9930ad4db2862fffddf515e31a9bc6150))
+* **shop:** mobile page to tick the shopping list, opened with a revocable link ([#47](https://github.com/Constantin-Hentgen/Emile/issues/47)) ([b97b7b1](https://github.com/Constantin-Hentgen/Emile/commit/b97b7b1b96f1a363c04ff64dc3a78e0d68545d5d))
+
 ## [0.4.1](https://github.com/Constantin-Hentgen/Emile/compare/v0.4.0...v0.4.1) (2026-11-16)
 
 
