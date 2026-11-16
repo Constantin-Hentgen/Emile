@@ -221,11 +221,15 @@ class Emile:
 
     # --- calendar ---------------------------------------------------------------------------------------------
 
-    def set_calendar(self, url: str, username: str = "", password: str = "") -> CalendarOut:
-        """Sync the household's shopping list to this CalDAV calendar (the connection is tried first)."""
-        return self._get(
-            CalendarOut, "PUT", "/v1/calendar", json={"url": url, "username": username, "password": password}
-        )
+    def set_calendar(
+        self, url: str, username: str = "", password: str = "", mode: Literal["event", "tasks"] = "event"
+    ) -> CalendarOut:
+        """Sync the household's shopping list to this CalDAV calendar (the connection is tried first).
+
+        ``mode="event"`` writes one event; ``mode="tasks"`` writes one task per item, ticked in both directions.
+        """
+        body = {"url": url, "username": username, "password": password, "mode": mode}
+        return self._get(CalendarOut, "PUT", "/v1/calendar", json=body)
 
     def calendar(self) -> CalendarOut | None:
         """The calendar settings and last sync state, or ``None`` if there is no calendar."""
