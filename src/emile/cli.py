@@ -54,6 +54,12 @@ def main(argv: Sequence[str] | None = None) -> None:
     setup.add_argument("--label", help="key label (default: the user's name)")
     _household_options(setup)
 
+    imports = sub.add_parser("import", help="one-shot imports").add_subparsers(dest="action", required=True)
+    import_bob = imports.add_parser("bob", help="import the shopping list and stock of a Bob state.json")
+    import_bob.add_argument("file", help="path to state.json, or - for standard input")
+    import_bob.add_argument("--household", type=int, required=True, help="household id (see `emile households list`)")
+    import_bob.add_argument("--replace", action="store_true", help="overwrite a kitchen that holds different data")
+
     args = parser.parse_args(argv)
     if args.command == "serve":
         _serve(args.host, args.port)
@@ -69,6 +75,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         ("households", "list"): _households_list,
         ("setup", ""): _setup,
     }
+    if args.command == "import":
+        _import_bob(args)
+        return
     if args.command == "db":
         _with_db(None)
         print("database up to date")
@@ -227,3 +236,49 @@ def _setup(session: "Session", args: Any, settings: "Settings", now: datetime.da
     print(f"household {household.id}: {household.name} ({household.timezone}, {household.language})")
     key, secret = accounts.create_key(session, user, args.label or user.name, now)
     _print_key(key, secret)
+
+
+def _import_bob(args: argparse.Namespace) -> None:
+    import json
+    from pathlib import Path
+
+    from emile.core import EmileError
+    from emile.service import migrate
+    from emile.service.db import Database
+    from emile.service.repository import WouldOverwrite
+    from emile.service.routes.imports import import_bob_state
+    from emile.service.settings import get_settings
+    from emile.service.tables import Household
+
+    try:
+        raw = sys.stdin.read() if args.file == "-" else Path(args.file).read_text(encoding="utf-8")
+        state = json.loads(raw)
+        if not isinstance(state, dict):
+            raise ValueError("expected a JSON object")
+    except (OSError, ValueError) as e:
+        print(f"error: cannot read {args.file}: {e}", file=sys.stderr)
+        raise SystemExit(1) from None
+    settings = get_settings()
+    database = Database(settings.database_url)
+    try:
+        migrate.upgrade(database)
+        with database.session() as session:
+            if session.get(Household, args.household) is None:
+                print(f"error: no household {args.household}", file=sys.stderr)
+                raise SystemExit(1)
+        result = import_bob_state(
+            database,
+            args.household,
+            state,
+            now=datetime.datetime.now(datetime.UTC),
+            limits=settings.limits,
+            replace=args.replace,
+        )
+    except (EmileError, WouldOverwrite) as e:
+        print(f"error: {e}", file=sys.stderr)
+        raise SystemExit(1) from None
+    finally:
+        database.dispose()
+    status = "imported" if result.changed else "already imported, nothing changed"
+    list_part = f"list {result.list_id} ({result.list_items} items)" if result.list_id else "no list"
+    print(f"{status}: {list_part}, {result.stock_entries} stock entries")

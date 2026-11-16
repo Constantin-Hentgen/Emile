@@ -32,6 +32,10 @@ class Busy(Exception):
     """The kitchen kept changing (or the database stayed locked) through every retry."""
 
 
+class WouldOverwrite(Exception):
+    """An import would replace a kitchen that already holds different data (pass ``replace=true`` to allow it)."""
+
+
 @dataclass(frozen=True, slots=True)
 class HouseholdInfo:
     """What the rules and texts need to know about a household, outside the kitchen itself."""

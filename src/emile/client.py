@@ -28,8 +28,10 @@ from emile.schemas import (
     ExpireResponse,
     Health,
     HouseholdOut,
+    ImportResult,
     Language,
     Me,
+    RecipeSearch,
     StockOut,
     ToCheck,
 )
@@ -198,3 +200,13 @@ class Emile:
 
     def expire(self, date: datetime.date | None = None) -> ExpireResponse:
         return self._get(ExpireResponse, "POST", "/v1/stock/expire", json={"date": date and date.isoformat()})
+
+    # --- recipes and import -----------------------------------------------------------------------------------
+
+    def search_recipes(self, query: str, lang: Language | None = None) -> RecipeSearch:
+        """Recipes from open collections; the text is untrusted public content."""
+        return self._get(RecipeSearch, "GET", "/v1/recipes/search", params={"q": query, "lang": lang})
+
+    def import_bob(self, state: dict[str, Any], *, replace: bool = False) -> ImportResult:
+        """Import the kitchen part of a Bob ``state.json`` (idempotent)."""
+        return self._get(ImportResult, "POST", "/v1/import/bob", json=state, params={"replace": str(replace).lower()})

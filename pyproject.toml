@@ -27,6 +27,7 @@ service = [
     "alembic>=1.14",
     "psycopg[binary]>=3.2",
     "tzdata",
+    "httpx2>=2.16",
 ]
 # Typed HTTP client for the service (same models as the API).
 client = [

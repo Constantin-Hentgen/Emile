@@ -8,11 +8,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response
 
 from emile import __version__
+from emile.recipes import build_sources
 from emile.schemas import ErrorBody, Health
 from emile.service import errors, migrate
 from emile.service.db import Database
 from emile.service.deps import Clock
-from emile.service.routes import account, admin, lists, stock
+from emile.service.routes import account, admin, imports, lists, recipes, stock
 from emile.service.settings import Settings, get_settings
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,7 @@ def create_app(settings: Settings | None = None, *, clock: Clock = system_clock)
     app.state.settings = settings
     app.state.db = db
     app.state.clock = clock
+    app.state.recipe_sources = build_sources(settings.recipe_source_names, timeout=settings.http_timeout)
     errors.install(app)
 
     @app.get("/health", tags=["operations"], responses={503: {"model": Health}})
@@ -75,6 +77,6 @@ def create_app(settings: Settings | None = None, *, clock: Clock = system_clock)
         response.status_code = 503
         return Health(status="error", version=__version__, database="error")
 
-    for router in (account.router, lists.router, stock.router, admin.router):
+    for router in (account.router, lists.router, stock.router, recipes.router, imports.router, admin.router):
         app.include_router(router)
     return app
