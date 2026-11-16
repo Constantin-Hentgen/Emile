@@ -73,6 +73,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106", "S107", "ANN", "S603", "PT018"]  # fake credentials in tests; compact multi-part asserts read better
+"src/emile/service/shop_page.py" = ["E501"]  # an HTML document: long CSS and JS lines are not Python style
 
 [tool.mypy]
 python_version = "3.13"

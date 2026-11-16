@@ -376,3 +376,54 @@ __all__ = [
     "UserCreate",
     "UserOut",
 ]
+
+
+# --- shop page ------------------------------------------------------------------------------------------------
+
+
+class ShopLinkCreate(BaseModel):
+    label: str | None = Field(default=None, max_length=80)
+    """What the link is for, e.g. "Anna's phone"."""
+
+
+class ShopLinkOut(BaseModel):
+    """A shop link, without its secret."""
+
+    id: int
+    label: str | None
+    prefix: str
+    created_at: datetime.datetime
+    last_used_at: datetime.datetime | None
+    revoked: bool
+
+
+class ShopLinkCreated(ShopLinkOut):
+    """A new shop link. ``token`` is shown once; ``path`` is what to append to the server's address to open the page."""
+
+    token: str
+    path: str
+    """``/shop#<token>``: the secret sits in the URL fragment, which browsers never send to the server."""
+
+
+class ShopItem(BaseModel):
+    index: int
+    """Position in the list, which is what ticking takes."""
+    label: str
+    done: bool
+
+
+class ShopGroup(BaseModel):
+    aisle: str
+    items: list[ShopItem]
+
+
+class ShopView(BaseModel):
+    """What the shop page shows: the current list, grouped by aisle in the household's language."""
+
+    list_id: int
+    language: Language
+    summary: str
+    """"7 days · €55–70 estimated", possibly empty."""
+    groups: list[ShopGroup]
+    total: int
+    done: int

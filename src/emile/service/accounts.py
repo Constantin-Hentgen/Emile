@@ -10,9 +10,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from emile.schemas import HouseholdOut, Member
-from emile.service.tables import ApiKey, Household, Membership, User
+from emile.service.tables import ApiKey, Household, Membership, ShopLink, User
 
 KEY_PREFIX = "emile_"
+SHOP_PREFIX = "shop_"
 
 
 class AccountError(ValueError):
@@ -82,6 +83,41 @@ def authenticate(session: Session, secret: str, now: datetime.datetime) -> Calle
     if key.last_used_at is None or now - key.last_used_at > datetime.timedelta(minutes=1):
         session.execute(update(ApiKey).where(ApiKey.id == key.id).values(last_used_at=now))
     return Caller(user.id, user.name, key.id)
+
+
+def create_shop_link(
+    session: Session, household_id: int, label: str | None, now: datetime.datetime
+) -> tuple[ShopLink, str]:
+    """A new shop link for a household: returns the row and the secret, which is never stored."""
+    secret = SHOP_PREFIX + secrets.token_urlsafe(32)
+    link = ShopLink(
+        household_id=household_id,
+        label=" ".join(label.split())[:80] or None if label else None,
+        prefix=secret[:11],
+        token_hash=hash_key(secret),
+        created_at=now,
+    )
+    session.add(link)
+    session.flush()
+    return link, secret
+
+
+def revoke_shop_link(session: Session, household_id: int, link_id: int, now: datetime.datetime) -> ShopLink:
+    link = session.get(ShopLink, link_id)
+    if link is None or link.household_id != household_id:
+        raise AccountError(f"no shop link {link_id}")
+    link.revoked_at = link.revoked_at or now
+    return link
+
+
+def authenticate_shop(session: Session, secret: str, now: datetime.datetime) -> int | None:
+    """The household id a shop link opens, if the link exists and is not revoked."""
+    link = session.scalar(select(ShopLink).where(ShopLink.token_hash == hash_key(secret)))
+    if link is None or link.revoked_at is not None:
+        return None
+    if link.last_used_at is None or now - link.last_used_at > datetime.timedelta(minutes=1):
+        session.execute(update(ShopLink).where(ShopLink.id == link.id).values(last_used_at=now))
+    return link.household_id
 
 
 def create_household(

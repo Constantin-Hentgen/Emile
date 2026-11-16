@@ -33,6 +33,8 @@ from emile.schemas import (
     Language,
     Me,
     RecipeSearch,
+    ShopLinkCreated,
+    ShopLinkOut,
     StockOut,
     SyncResult,
     ToCheck,
@@ -246,6 +248,18 @@ class Emile:
     def sync(self) -> SyncResult:
         """Sync now (the server also does it every ``EMILE_SYNC_INTERVAL`` seconds)."""
         return self._get(SyncResult, "POST", "/v1/sync")
+
+    # --- shop page --------------------------------------------------------------------------------------------
+
+    def create_shop_link(self, label: str | None = None) -> ShopLinkCreated:
+        """A link for the shop page. ``token`` is shown once: open ``<server>`` + ``path`` on the phone."""
+        return self._get(ShopLinkCreated, "POST", "/v1/shop-links", json={"label": label})
+
+    def shop_links(self) -> list[ShopLinkOut]:
+        return self._get(list[ShopLinkOut], "GET", "/v1/shop-links")
+
+    def revoke_shop_link(self, link_id: int) -> None:
+        self._request("DELETE", f"/v1/shop-links/{link_id}")
 
     # --- recipes and import -----------------------------------------------------------------------------------
 

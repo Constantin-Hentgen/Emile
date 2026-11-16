@@ -111,6 +111,22 @@ class StockRow(Base):
     boxes: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class ShopLink(Base):
+    """A revocable secret that opens the shop page: it can read the household's current list and tick items, and
+    nothing else. Like API keys, only the SHA-256 of the secret is stored."""
+
+    __tablename__ = "shop_links"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    household_id: Mapped[int] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"), index=True)
+    label: Mapped[str | None] = mapped_column(String(80))
+    prefix: Mapped[str] = mapped_column(String(16))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(UTCDateTime)
+    last_used_at: Mapped[datetime.datetime | None] = mapped_column(UTCDateTime)
+    revoked_at: Mapped[datetime.datetime | None] = mapped_column(UTCDateTime)
+
+
 class CalendarConfig(Base):
     """A household's CalDAV calendar. The password is encrypted with ``EMILE_SECRET_KEY``."""
 
