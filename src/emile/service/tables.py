@@ -109,3 +109,20 @@ class StockRow(Base):
     due: Mapped[datetime.date | None] = mapped_column(Date)
     asked: Mapped[datetime.date | None] = mapped_column(Date)
     boxes: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class CalendarConfig(Base):
+    """A household's CalDAV calendar. The password is encrypted with ``EMILE_SECRET_KEY``."""
+
+    __tablename__ = "calendar_configs"
+
+    household_id: Mapped[int] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"), primary_key=True)
+    url: Mapped[str] = mapped_column(String(500))
+    username: Mapped[str] = mapped_column(String(255))
+    password_encrypted: Mapped[str] = mapped_column(Text)
+    mode: Mapped[str] = mapped_column(String(10), default="event")
+    synced_digest: Mapped[str | None] = mapped_column(String(64))
+    """Fingerprint of what was last written to the calendar; the sync is skipped while nothing changed."""
+    last_sync_at: Mapped[datetime.datetime | None] = mapped_column(UTCDateTime)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime.datetime] = mapped_column(UTCDateTime)

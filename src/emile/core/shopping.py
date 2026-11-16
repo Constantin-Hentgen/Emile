@@ -50,9 +50,15 @@ def new_list(
     coverage: str | None = None,
     cost_min: float | None = None,
     cost_max: float | None = None,
+    start: datetime.datetime | None = None,
+    end: datetime.datetime | None = None,
     limits: Limits = DEFAULT_LIMITS,
 ) -> ShoppingList:
     """Create the current list, replacing the previous one; every item starts unticked.
+
+    ``start`` and ``end`` give the shopping slot for the calendar. Without them, the previous list's slot is reused
+    if it is still ahead of ``now`` (replacing a list keeps the trip). The calendar event itself is not carried
+    over: the new list gets its own, and the sync removes the old one.
 
     Items without a name are skipped. More items than ``Limits.max_list_items`` is an error rather than a silent
     truncation (Bob truncated), so the client knows to split or shorten the list.
@@ -65,6 +71,19 @@ def new_list(
         raise LimitExceeded(f"{len(clean_items)} items: a list holds at most {limits.max_list_items}")
     if cost_min is not None and cost_max is not None and cost_max < cost_min:
         cost_min, cost_max = cost_max, cost_min
+    if (start is None) != (end is None):
+        raise InvalidInput("a shopping slot needs both a start and an end")
+    if start is not None and end is not None:
+        if start.tzinfo is None or end.tzinfo is None:
+            raise InvalidInput("the shopping slot must be timezone-aware")
+        if end <= start:
+            raise InvalidInput("the shopping slot must end after it starts")
+        if end < now:
+            raise InvalidInput("the shopping slot is in the past")
+    elif (
+        (previous := kitchen.current_list) and previous.event_start and previous.event_end and previous.event_end > now
+    ):
+        start, end = previous.event_start, previous.event_end
     lst = ShoppingList(
         id=kitchen.next_list_id,
         items=clean_items,
@@ -72,6 +91,8 @@ def new_list(
         coverage=clean(coverage, MAX_COVERAGE),
         cost_min=cost_min,
         cost_max=cost_max,
+        event_start=start,
+        event_end=end,
         created=now,
     )
     kitchen.next_list_id += 1
@@ -213,4 +234,19 @@ def attach_event(
     """Remember the calendar event holding the list (and its slot, reused when the list is replaced)."""
     lst = current(kitchen, list_id)
     lst.event_uid, lst.event_start, lst.event_end = uid, start, end
+    return lst
+
+
+def set_slot(
+    kitchen: Kitchen, list_id: int, start: datetime.datetime, end: datetime.datetime, *, now: datetime.datetime
+) -> ShoppingList:
+    """Move the shopping trip: the calendar event keeps its identity and is updated in place."""
+    lst = current(kitchen, list_id)
+    if start.tzinfo is None or end.tzinfo is None:
+        raise InvalidInput("the shopping slot must be timezone-aware")
+    if end <= start:
+        raise InvalidInput("the shopping slot must end after it starts")
+    if end < now:
+        raise InvalidInput("the shopping slot is in the past")
+    lst.event_start, lst.event_end = start, end
     return lst

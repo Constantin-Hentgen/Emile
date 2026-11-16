@@ -24,6 +24,7 @@ from emile.core.models import EditSummary, NewItem, ShoppingList, StockAdd, Stoc
 from emile.schemas import (
     AnswerResponse,
     AskedResponse,
+    CalendarOut,
     EditListResponse,
     ExpireResponse,
     Health,
@@ -33,6 +34,7 @@ from emile.schemas import (
     Me,
     RecipeSearch,
     StockOut,
+    SyncResult,
     ToCheck,
 )
 
@@ -126,9 +128,20 @@ class Emile:
         coverage: str | None = None,
         cost_min: float | None = None,
         cost_max: float | None = None,
+        start_time: datetime.datetime | None = None,
+        duration_minutes: int | None = None,
     ) -> ShoppingList:
-        body = {"items": _dump(items), "days": days, "coverage": coverage, "cost_min": cost_min, "cost_max": cost_max}
-        return self._get(ShoppingList, "POST", "/v1/lists", json=body)
+        """``start_time`` (without a time zone: the household's) is when the shopping trip starts, for the calendar."""
+        body = {
+            "items": _dump(items),
+            "days": days,
+            "coverage": coverage,
+            "cost_min": cost_min,
+            "cost_max": cost_max,
+            "start_time": start_time and start_time.isoformat(),
+            "duration_minutes": duration_minutes,
+        }
+        return self._get(ShoppingList, "POST", "/v1/lists", json={k: v for k, v in body.items() if v is not None})
 
     def current_list(self) -> ShoppingList | None:
         """The current list, or ``None`` if the household has none."""
@@ -160,6 +173,11 @@ class Emile:
 
     def set_recipes(self, list_id: int, text: str | None, meals: Sequence[int] = ()) -> ShoppingList:
         return self._get(ShoppingList, "PUT", f"/v1/lists/{list_id}/recipes", json={"text": text, "meals": list(meals)})
+
+    def set_slot(self, list_id: int, start_time: datetime.datetime, duration_minutes: int = 60) -> ShoppingList:
+        """Move the shopping trip (the calendar event follows at the next sync)."""
+        body = {"start_time": start_time.isoformat(), "duration_minutes": duration_minutes}
+        return self._get(ShoppingList, "PUT", f"/v1/lists/{list_id}/slot", json=body)
 
     def list_text(
         self, style: Literal["checklist", "prompt", "summary"] = "checklist", lang: Language | None = None
@@ -200,6 +218,30 @@ class Emile:
 
     def expire(self, date: datetime.date | None = None) -> ExpireResponse:
         return self._get(ExpireResponse, "POST", "/v1/stock/expire", json={"date": date and date.isoformat()})
+
+    # --- calendar ---------------------------------------------------------------------------------------------
+
+    def set_calendar(self, url: str, username: str = "", password: str = "") -> CalendarOut:
+        """Sync the household's shopping list to this CalDAV calendar (the connection is tried first)."""
+        return self._get(
+            CalendarOut, "PUT", "/v1/calendar", json={"url": url, "username": username, "password": password}
+        )
+
+    def calendar(self) -> CalendarOut | None:
+        """The calendar settings and last sync state, or ``None`` if there is no calendar."""
+        try:
+            return self._get(CalendarOut, "GET", "/v1/calendar")
+        except ApiError as e:
+            if e.status == 404:
+                return None
+            raise
+
+    def remove_calendar(self) -> None:
+        self._request("DELETE", "/v1/calendar")
+
+    def sync(self) -> SyncResult:
+        """Sync now (the server also does it every ``EMILE_SYNC_INTERVAL`` seconds)."""
+        return self._get(SyncResult, "POST", "/v1/sync")
 
     # --- recipes and import -----------------------------------------------------------------------------------
 

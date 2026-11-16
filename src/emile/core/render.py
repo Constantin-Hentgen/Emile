@@ -44,6 +44,11 @@ _TEXT: dict[str, dict[Lang, str]] = {
     "list_covers": {"fr": "couvre {n} jours", "en": "covers {n} days"},
     "list_event": {"fr": "dans l'agenda le {day} {time}", "en": "in the calendar on {day} {time}"},
     "list_legend": {"fr": "✅ = acheté", "en": "✅ = bought"},
+    "event_title": {"fr": "🛒 Courses ({details})", "en": "🛒 Shopping ({details})"},
+    "event_items": {"fr": "{n} articles", "en": "{n} items"},
+    "event_covers": {"fr": "Couvre : {what}", "en": "Covers: {what}"},
+    "event_cost": {"fr": "Coût estimé : {cost}", "en": "Estimated cost: {cost}"},
+    "event_recipes": {"fr": "🍳 RECETTES", "en": "🍳 RECIPES"},
 }
 
 
@@ -107,6 +112,29 @@ def checklist(items: Sequence[ListItem], lang: Lang = "fr") -> str:
         f"{aisle}\n" + "\n".join(f"{'✅' if item.done else '☐'} {item_label(item)}" for __, item in entries)
         for aisle, entries in group_by_aisle(items, lang).items()
     )
+
+
+def event_summary(lst: ShoppingList, lang: Lang = "fr", currency: str = "€") -> str:
+    """Title of the calendar event: "🛒 Courses (12 articles, 7 jours · 55–70 € estimés)"."""
+    details = ", ".join(
+        x for x in (text("event_items", lang, n=len(lst.items)), summary_line(lst, lang, currency)) if x
+    )
+    return text("event_title", lang, details=details)
+
+
+def event_description(lst: ShoppingList, lang: Lang = "fr", currency: str = "€") -> str:
+    """Description of the calendar event: coverage and estimated cost, the aisle-grouped checklist, then recipes."""
+    head = []
+    if lst.days or lst.coverage:
+        what = ", ".join(x for x in (lst.days and text("days", lang, n=lst.days), lst.coverage) if x)
+        head.append(text("event_covers", lang, what=what))
+    if cost := format_cost(lst.cost_min, lst.cost_max, lang, currency):
+        head.append(text("event_cost", lang, cost=cost))
+    body = checklist(lst.items, lang)
+    out = ("\n".join(head) + "\n\n" if head else "") + body
+    if lst.recipes:
+        out += f"\n\n{text('event_recipes', lang)}\n\n{lst.recipes.strip()}"
+    return out
 
 
 def list_text(lst: ShoppingList | None, lang: Lang = "fr", tz: ZoneInfo | None = None) -> str:

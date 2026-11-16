@@ -13,7 +13,7 @@ Typical use::
     shopping.toggle(kitchen, lst.id, 0, today=today)   # bought: now in kitchen.stock
 """
 
-from emile.core import bob, render, shopping, stock
+from emile.core import bob, ical, render, shopping, stock
 from emile.core.errors import EmileError, InvalidInput, ItemNotFound, LimitExceeded, NoCurrentList, StaleList
 from emile.core.limits import DEFAULT_LIMITS, Limits
 from emile.core.models import (
@@ -50,6 +50,7 @@ __all__ = [
     "StockRemove",
     "StockSummary",
     "bob",
+    "ical",
     "keeps_days",
     "render",
     "shopping",

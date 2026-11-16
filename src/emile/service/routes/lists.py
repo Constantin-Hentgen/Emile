@@ -1,17 +1,27 @@
 """The shopping list: create, read, edit by name, tick by position, reset, recipes, text."""
 
+import datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query
 from fastapi.responses import PlainTextResponse
 
 from emile.core import Kitchen, ShoppingList, render, shopping
-from emile.schemas import EditListRequest, EditListResponse, Language, NewListRequest, RecipesRequest
+from emile.schemas import EditListRequest, EditListResponse, Language, NewListRequest, RecipesRequest, SlotRequest
 from emile.service import repository
 from emile.service.deps import DbDep, HouseholdDep, LimitsDep, NowDep
 from emile.service.repository import HouseholdInfo
 
 router = APIRouter(prefix="/v1/lists", tags=["shopping list"])
+
+
+def _span(
+    start_time: datetime.datetime, duration_minutes: int, info: HouseholdInfo
+) -> tuple[datetime.datetime, datetime.datetime]:
+    """A request's start time (local to the household if it has no zone) and duration as an aware (start, end)."""
+    start = start_time if start_time.tzinfo else start_time.replace(tzinfo=info.timezone)
+    start = start.astimezone(datetime.UTC)
+    return start, start + datetime.timedelta(minutes=duration_minutes)
 
 
 @router.post("", status_code=201)
@@ -24,6 +34,7 @@ def create_list(
     """
 
     def run(kitchen: Kitchen, info: HouseholdInfo) -> ShoppingList:
+        start, end = _span(body.start_time, body.duration_minutes, info) if body.start_time else (None, None)
         return shopping.new_list(
             kitchen,
             body.items,
@@ -32,6 +43,8 @@ def create_list(
             coverage=body.coverage,
             cost_min=body.cost_min,
             cost_max=body.cost_max,
+            start=start,
+            end=end,
             limits=limits,
         )
 
@@ -117,3 +130,17 @@ def current_text(
         return render.checklist(lst.items, language)  # type: ignore[arg-type]
 
     return repository.read(db, household.id, run)
+
+
+@router.put("/{list_id}/slot")
+def set_slot(list_id: int, body: SlotRequest, db: DbDep, household: HouseholdDep, now: NowDep) -> ShoppingList:
+    """Move the shopping trip. Its calendar event is updated in place at the next sync.
+
+    Refused with 409 `stale_list` if `list_id` is no longer the current list.
+    """
+
+    def run(kitchen: Kitchen, info: HouseholdInfo) -> ShoppingList:
+        start, end = _span(body.start_time, body.duration_minutes, info)
+        return shopping.set_slot(kitchen, list_id, start, end, now=now)
+
+    return repository.mutate(db, household.id, run)

@@ -116,3 +116,20 @@ def api(client, alice) -> TestClient:
     """The test client, authenticated as alice."""
     client.headers.update(alice.headers)
     return client
+
+
+@pytest.fixture
+def make_account_for():
+    """An account on an app that was built outside the ``app`` fixture (own settings, own database)."""
+
+    def make(app: FastAPI) -> Account:
+        with app.state.db.session() as session:
+            user = accounts.create_user(session, "carol", NOW)
+            row = accounts.create_household(
+                session, "Home", timezone="Europe/Paris", language="fr", currency="€",
+                meal_boxes=0, members=[user], now=NOW,
+            )  # fmt: skip
+            __, secret = accounts.create_key(session, user, "test", NOW)
+            return Account(user.id, row.id, secret)
+
+    return make

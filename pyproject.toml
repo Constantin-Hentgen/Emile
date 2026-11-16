@@ -28,6 +28,9 @@ service = [
     "psycopg[binary]>=3.2",
     "tzdata",
     "httpx2>=2.16",
+    "caldav>=1.4",
+    "icalendar>=6.0",
+    "cryptography>=44",
 ]
 # Typed HTTP client for the service (same models as the API).
 client = [
@@ -69,7 +72,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "ANN", "S603", "PT018"]  # compact multi-part asserts read better in scenario tests
+"tests/**" = ["S101", "S105", "S106", "S107", "ANN", "S603", "PT018"]  # fake credentials in tests; compact multi-part asserts read better
 
 [tool.mypy]
 python_version = "3.13"
@@ -79,7 +82,7 @@ files = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --strict-markers"
+addopts = "-ra --strict-markers -m 'not integration'"
 markers = [
-    "integration: needs external services (e.g. a Radicale container); skipped unless selected with -m integration",
+    "integration: needs external services (e.g. a Radicale container); not run by default: select them with -m integration",
 ]
