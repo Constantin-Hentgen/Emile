@@ -28,6 +28,10 @@ from emile.service.repository import HouseholdInfo
 router = APIRouter(prefix="/v1/stock", tags=["stock"])
 
 
+def _lang(language: str) -> render.Lang:
+    return "en" if language == "en" else "fr"
+
+
 def _stock_out(kitchen: Kitchen, info: HouseholdInfo) -> StockOut:
     dishes = stock.boxes_in_use(kitchen.stock)
     used = sum(n for __, n in dishes)
@@ -52,12 +56,15 @@ def get_stock(db: DbDep, household: HouseholdDep) -> StockOut:
 def update_stock(
     body: StockUpdateRequest, db: DbDep, household: HouseholdDep, now: NowDep, limits: LimitsDep
 ) -> StockSummary:
-    """Same as Bob's `update_stock` tool. `remove` first (with `qty_left` when some is left), then `add` (same name
-    replaces the entry; `boxes: true` for a batch-cooked dish whose `qty` counts boxes). All or nothing."""
+    """Same as Bob's `update_stock` tool. `remove` first, then `add` (same name replaces the entry; `boxes: true` for
+    a batch-cooked dish whose `qty` counts boxes). In `remove`, `qty_left` says what is left and `qty_used` what was
+    used (`"200 g"` out of `"1 kg"` leaves `"800 g"`). All or nothing."""
     return repository.mutate(
         db,
         household.id,
-        lambda kitchen, info: stock.update(kitchen, body.add, body.remove, today=info.today(now), limits=limits),
+        lambda kitchen, info: stock.update(
+            kitchen, body.add, body.remove, today=info.today(now), limits=limits, lang=_lang(info.language)
+        ),
     )
 
 

@@ -17,6 +17,7 @@ from collections.abc import Iterable, Iterator, Sequence
 from emile.core.errors import InvalidInput, LimitExceeded
 from emile.core.limits import DEFAULT_LIMITS, Limits
 from emile.core.models import KeepsValue, Kitchen, Source, StockAdd, StockEntry, StockRemove, StockSummary
+from emile.core.quantity import Lang, Quantity, format_quantity, parse, subtract
 from emile.core.text import MAX_NAME, MAX_QTY, clean, keeps_days, name_key
 
 
@@ -94,9 +95,13 @@ def update(
     *,
     today: datetime.date,
     limits: Limits = DEFAULT_LIMITS,
+    lang: Lang = "fr",
 ) -> StockSummary:
     """Apply what the household reports: removals first (so "finished the rice, bought rice" ends with rice), then
-    additions. All-or-nothing on errors."""
+    additions. All-or-nothing on errors.
+
+    ``lang`` is the household's language, used to write a quantity left after a ``qty_used`` (``1,5 kg``).
+    """
     out = StockSummary()
     with atomic(kitchen):
         for r in remove:
@@ -104,6 +109,16 @@ def update(
             entry = find(kitchen, name) if name else None
             if entry is None:
                 out.not_found.append(name)
+            elif qty_used := clean(r.qty_used, MAX_QTY):
+                if clean(r.qty_left, MAX_QTY):
+                    raise InvalidInput(f"{entry.name}: give qty_left or qty_used, not both")
+                left = _use(entry, qty_used)
+                if left is None:
+                    kitchen.stock.remove(entry)
+                    out.removed.append(entry.name)
+                else:
+                    entry.qty = format_quantity(left, lang)
+                    out.updated.append(label(entry))
             elif qty_left := clean(r.qty_left, MAX_QTY):
                 entry.qty = qty_left
                 out.updated.append(label(entry))
@@ -116,6 +131,16 @@ def update(
             entry = put(kitchen, a.name, a.qty, today, keeps=a.keeps, boxes=a.boxes, limits=limits)
             out.added.append(label(entry))
     return out
+
+
+def _use(entry: StockEntry, used_text: str) -> Quantity | None:
+    """What is left of ``entry`` after using ``used_text``; ``None`` when nothing is left."""
+    have, used = parse(entry.qty), parse(used_text)
+    if have is None:
+        raise InvalidInput(f"{entry.name}: the quantity in stock ({entry.qty or 'none'}) cannot be read; use qty_left")
+    if used is None or used.amount <= 0:
+        raise InvalidInput(f"{entry.name}: the quantity used ({used_text}) cannot be read")
+    return subtract(have, used)
 
 
 def remove_ids(kitchen: Kitchen, ids: Iterable[int]) -> list[StockEntry]:

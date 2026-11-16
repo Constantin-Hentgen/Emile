@@ -172,3 +172,68 @@ def test_remove_ids(kitchen):
     stock.put(kitchen, "B", None, TODAY)
     assert [e.name for e in stock.remove_ids(kitchen, [a.id, 999])] == ["A"]
     assert names(kitchen) == ["B"]
+
+
+# --- partial consumption (qty_used) ---------------------------------------------------------------------------
+
+
+def test_qty_used_subtracts_and_rewrites_the_quantity(kitchen):
+    stock.put(kitchen, "Farine", "1 kg", TODAY)
+    stock.put(kitchen, "Lait", "1,5 L", TODAY)
+    used = [StockRemove(name="farine", qty_used="200 g"), StockRemove.model_validate({"name": "Lait", "used": "1 L"})]
+    out = stock.update(kitchen, remove=used, today=TODAY)
+    assert out.updated == ["Farine (800 g)", "Lait (500 ml)"]
+    assert [e.qty for e in kitchen.stock] == ["800 g", "500 ml"]
+
+
+def test_using_all_of_it_or_more_removes_the_entry(kitchen):
+    stock.put(kitchen, "Farine", "500 g", TODAY)
+    stock.put(kitchen, "Chili", "2 boîtes", TODAY, boxes=True)
+    out = stock.update(
+        kitchen,
+        remove=[StockRemove(name="Farine", qty_used="1 kg"), StockRemove(name="Chili", qty_used="2 boîtes")],
+        today=TODAY,
+    )
+    assert (out.removed, kitchen.stock) == (["Farine", "Chili"], [])
+
+
+def test_quantity_left_is_written_in_the_households_language(kitchen):
+    stock.put(kitchen, "Farine", "2 kg", TODAY)
+    stock.update(kitchen, remove=[StockRemove(name="Farine", qty_used="500 g")], today=TODAY, lang="en")
+    assert kitchen.stock[0].qty == "1.5 kg"
+
+
+@pytest.mark.parametrize(
+    ("qty", "used", "message"),
+    [
+        ("3 boîtes", "200 g", "cannot take g from box"),
+        ("un peu", "200 g", "cannot be read; use qty_left"),
+        (None, "200 g", "cannot be read; use qty_left"),
+        ("1 kg", "beaucoup", "the quantity used"),
+        ("1 kg", "0 g", "the quantity used"),
+    ],
+)
+def test_qty_used_refused_changes_nothing(kitchen, qty, used, message):
+    stock.put(kitchen, "Riz", "1 kg", TODAY)
+    stock.put(kitchen, "Farine", qty, TODAY)
+    before = kitchen.model_copy(deep=True)
+    with pytest.raises(ValueError, match=message):
+        stock.update(
+            kitchen,
+            remove=[StockRemove(name="Riz", qty_used="200 g"), StockRemove(name="Farine", qty_used=used)],
+            today=TODAY,
+        )
+    assert kitchen == before
+
+
+def test_qty_used_and_qty_left_together_are_refused(kitchen):
+    stock.put(kitchen, "Riz", "1 kg", TODAY)
+    with pytest.raises(ValueError, match="not both"):
+        stock.update(kitchen, remove=[StockRemove(name="Riz", qty_used="200 g", qty_left="800 g")], today=TODAY)
+
+
+def test_entries_and_items_expose_their_measure(kitchen):
+    rice = stock.put(kitchen, "Riz", "1 kg", TODAY)
+    bread = stock.put(kitchen, "Pain", None, TODAY)
+    assert rice.measure is not None
+    assert (rice.measure.amount, rice.measure.unit, bread.measure) == (1000.0, "g", None)

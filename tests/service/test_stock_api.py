@@ -102,3 +102,31 @@ def test_stock_limit_is_all_or_nothing(api, app):
     res = api.post("/v1/stock", json={"add": [{"name": "Pain"}, {"name": "Œufs"}]})
     assert (res.status_code, res.json()["error"]) == (422, "limit_exceeded")
     assert names(api) == ["Riz"]
+
+
+def test_partial_consumption_and_measures(api):
+    api.post("/v1/stock", json={"add": [{"name": "Farine", "qty": "1 kg"}, {"name": "Chili", "qty": "3"}]})
+    entries = api.get("/v1/stock").json()["entries"]
+    assert [e["measure"] for e in entries] == [{"amount": 1000.0, "unit": "g"}, {"amount": 3.0, "unit": "piece"}]
+    used = [{"name": "Farine", "qty_used": "250 g"}, {"name": "Chili", "used": "3"}]
+    res = api.post("/v1/stock", json={"remove": used})
+    assert res.json() == {"added": [], "removed": ["Chili"], "updated": ["Farine (750 g)"], "not_found": []}
+    api.patch("/v1/household", json={"language": "en"})
+    api.post("/v1/stock", json={"remove": [{"name": "Farine", "qty_used": "½ g"}]})
+    assert api.get("/v1/stock").json()["entries"][0]["qty"] == "749.5 g"
+
+
+def test_partial_consumption_refused_is_atomic(api):
+    api.post("/v1/stock", json={"add": [{"name": "Farine", "qty": "1 kg"}, {"name": "Chili", "qty": "2 boîtes"}]})
+    res = api.post(
+        "/v1/stock", json={"remove": [{"name": "Farine", "qty_used": "250 g"}, {"name": "Chili", "qty_used": "1 L"}]}
+    )
+    assert (res.status_code, res.json()["error"]) == (422, "invalid_input")
+    assert "cannot take ml from box" in res.json()["detail"]
+    assert [e["qty"] for e in api.get("/v1/stock").json()["entries"]] == ["1 kg", "2 boîtes"]
+
+
+def test_list_items_carry_a_measure(api):
+    api.post("/v1/lists", json={"items": [{"name": "Lait", "qty": "2 x 1 L"}, {"name": "Basilic", "qty": "1 botte"}]})
+    items = api.get("/v1/lists/current").json()["items"]
+    assert [i["measure"] for i in items] == [{"amount": 2000.0, "unit": "ml"}, None]
