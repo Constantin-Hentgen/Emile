@@ -7,7 +7,9 @@ from fastapi.responses import JSONResponse
 
 from emile.core import InvalidInput, ItemNotFound, LimitExceeded, NoCurrentList, StaleList
 from emile.service.accounts import AccountError
+from emile.service.remote import RemoteError
 from emile.service.repository import Busy, WouldOverwrite
+from emile.service.sync import CalendarUnavailable, NotConfigured, SyncError
 
 # (exception, HTTP status, error code)
 DOMAIN_ERRORS: list[tuple[type[Exception], int, str]] = [
@@ -19,6 +21,10 @@ DOMAIN_ERRORS: list[tuple[type[Exception], int, str]] = [
     (AccountError, 400, "account_error"),
     (Busy, 503, "busy"),
     (WouldOverwrite, 409, "would_overwrite"),
+    (NotConfigured, 404, "not_found"),
+    (CalendarUnavailable, 503, "calendar_unavailable"),
+    (SyncError, 502, "calendar_error"),
+    (RemoteError, 502, "calendar_error"),
 ]
 
 _HTTP_CODES = {400: "bad_request", 401: "unauthorized", 403: "forbidden", 404: "not_found", 409: "conflict"}

@@ -8,7 +8,7 @@ Each field must be documented in ``.env.example``; a test enforces it.
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from emile.core.limits import Limits
@@ -44,20 +44,27 @@ class Settings(BaseSettings):
     http_timeout: float = Field(default=8.0, gt=0, le=120)
     """Timeout (seconds) of outgoing HTTP requests (recipe sources)."""
 
+    secret_key: SecretStr | None = None
+    """Encrypts stored secrets (CalDAV passwords). Without it, calendar sync cannot be configured."""
+    sync_interval: int = Field(default=60, ge=0, le=86400)
+    """Seconds between background CalDAV syncs; 0 turns the background loop off (``POST /v1/sync`` still works)."""
+
     _tz = field_validator("default_timezone")(_check_timezone)
 
     @property
     def recipe_source_names(self) -> list[str]:
         return [name.strip().lower() for name in self.recipe_sources.split(",") if name.strip()]
 
-    @field_validator("admin_key")
+    @field_validator("admin_key", "secret_key")
     @classmethod
-    def _admin_key_strength(cls, value: SecretStr | None) -> SecretStr | None:
+    def _secret_strength(cls, value: SecretStr | None, info: ValidationInfo) -> SecretStr | None:
         """An empty variable (as compose passes it) means "disabled"; a short one is refused rather than weak."""
         if value is None or not value.get_secret_value():
             return None
         if len(value.get_secret_value()) < 24:
-            raise ValueError("EMILE_ADMIN_KEY must be at least 24 characters (e.g. `openssl rand -hex 32`)")
+            raise ValueError(
+                f"EMILE_{str(info.field_name).upper()} must be at least 24 characters (`openssl rand -hex 32`)"
+            )
         return value
 
     @property

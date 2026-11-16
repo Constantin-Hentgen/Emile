@@ -142,6 +142,17 @@ class NewListRequest(BaseModel):
     coverage: str | None = None
     cost_min: float | None = Field(default=None, validation_alias=AliasChoices("cost_min", "estimated_cost_min_eur"))
     cost_max: float | None = Field(default=None, validation_alias=AliasChoices("cost_max", "estimated_cost_max_eur"))
+    start_time: datetime.datetime | None = None
+    """When the shopping trip starts, for the calendar. Without a time zone, the household's applies. Omitted: the
+    previous list's slot is reused if it is still ahead."""
+    duration_minutes: int = Field(default=60, ge=5, le=720)
+
+
+class SlotRequest(BaseModel):
+    """Move the shopping trip of a list."""
+
+    start_time: datetime.datetime
+    duration_minutes: int = Field(default=60, ge=5, le=720)
 
 
 class EditListRequest(BaseModel):
@@ -266,6 +277,45 @@ class RecipeSearch(BaseModel):
     """Empty when nothing is close or the source is unavailable: the client then writes the recipe itself."""
 
 
+# --- calendar -------------------------------------------------------------------------------------------------
+
+
+class CalendarSet(BaseModel):
+    """Where to sync the household's shopping list. The password is stored encrypted and never returned."""
+
+    url: str = Field(min_length=8, max_length=500, description="URL of the calendar collection (http or https).")
+    username: str = Field(default="", max_length=255)
+    password: str = Field(default="", max_length=500)
+    mode: Literal["event"] = "event"
+    """``event``: one event with the checklist in its description."""
+
+    @field_validator("url")
+    @classmethod
+    def _http_url(cls, value: str) -> str:
+        value = value.strip()
+        if not value.lower().startswith(("http://", "https://")):
+            raise ValueError("the calendar URL must start with http:// or https://")
+        return value
+
+
+class CalendarOut(BaseModel):
+    url: str
+    username: str
+    mode: Literal["event"]
+    last_sync_at: datetime.datetime | None
+    last_error: str | None
+    """The last sync's failure, cleared by the next success."""
+
+
+class SyncResult(BaseModel):
+    status: Literal["synced", "unchanged", "skipped"]
+    """``skipped``: nothing to put in the calendar (no list, or no shopping slot); see ``detail``."""
+    detail: str | None = None
+    event_uid: str | None = None
+    removed: int = 0
+    """Older upcoming shopping events replaced by this one."""
+
+
 # --- import ---------------------------------------------------------------------------------------------------
 
 
@@ -287,6 +337,8 @@ __all__ = [
     "AskedResponse",
     "BoxDish",
     "Boxes",
+    "CalendarOut",
+    "CalendarSet",
     "EditListRequest",
     "EditListResponse",
     "ErrorBody",
@@ -308,11 +360,13 @@ __all__ = [
     "RecipeSearch",
     "RecipesRequest",
     "ShoppingList",
+    "SlotRequest",
     "StockAdd",
     "StockOut",
     "StockRemove",
     "StockUpdateRequest",
     "StockUpdateResponse",
+    "SyncResult",
     "ToCheck",
     "UserCreate",
     "UserOut",
