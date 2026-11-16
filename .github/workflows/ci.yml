@@ -82,7 +82,11 @@ jobs:
           [storage]
           filesystem_folder = $RUNNER_TEMP/radicale/data
           EOF
-          uv run --no-project --with "radicale==3.9.1" python -m radicale --config "$RUNNER_TEMP/radicale/config" &
+          # own virtualenv: a background `uv run` would hold the uv cache lock until the job's cleanup times out
+          uv venv "$RUNNER_TEMP/radicale-venv"
+          uv pip install --python "$RUNNER_TEMP/radicale-venv/bin/python" "radicale==3.9.1"
+          "$RUNNER_TEMP/radicale-venv/bin/python" -m radicale --config "$RUNNER_TEMP/radicale/config" &
+          echo $! > "$RUNNER_TEMP/radicale/pid"
           for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:5232/ && break; sleep 1; done
       - name: Sync tests against Radicale
         env:
@@ -90,6 +94,9 @@ jobs:
           EMILE_TEST_CALDAV_USER: me
           EMILE_TEST_CALDAV_PASSWORD: secret
         run: uv run --frozen python -m pytest -q -m integration
+      - name: Stop Radicale
+        if: always()
+        run: kill "$(cat "$RUNNER_TEMP/radicale/pid")" || true
 
   docker:
     # `docker compose up` must work on a fresh machine: build, wait for /health, create a key, call the API.
