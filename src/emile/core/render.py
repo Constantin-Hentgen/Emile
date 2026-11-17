@@ -5,12 +5,13 @@ rather than in gettext catalogues: there are few of them, and a library user sho
 """
 
 import datetime
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Literal
 from zoneinfo import ZoneInfo
 
 from emile.core.models import ListItem, ShoppingList, StockEntry
 from emile.core.stock import boxes_in_use
+from emile.core.text import name_key
 
 type Lang = Literal["fr", "en"]
 LANGS: tuple[Lang, ...] = ("fr", "en")
@@ -74,14 +75,22 @@ def item_label(item: ListItem) -> str:
     return item.name + (f" — {item.qty}" if item.qty else "")
 
 
-def group_by_aisle(items: Sequence[ListItem], lang: Lang = "fr") -> dict[str, list[tuple[int, ListItem]]]:
+def group_by_aisle(
+    items: Sequence[ListItem], lang: Lang = "fr", order: Mapping[str, float] | None = None
+) -> dict[str, list[tuple[int, ListItem]]]:
     """Aisle → ``[(index, item)]``, aisles in order of first appearance (the order the client chose).
+
+    ``order`` (aisle key → score, see :mod:`emile.core.aisles`) puts the aisles of a known shop first, in the order
+    that shop is laid out; the others follow in the client's order.
 
     Indexes are positions in the list, which is what toggling takes.
     """
     groups: dict[str, list[tuple[int, ListItem]]] = {}
     for n, item in enumerate(items):
         groups.setdefault(item.aisle or text("misc_aisle", lang), []).append((n, item))
+    if order:
+        known = sorted((a for a in groups if name_key(a) in order), key=lambda a: order[name_key(a)])
+        groups = {a: groups[a] for a in [*known, *(a for a in groups if a not in known)]}
     return groups
 
 
@@ -106,11 +115,11 @@ def summary_line(lst: ShoppingList, lang: Lang = "fr", currency: str = "€") ->
     return " · ".join(parts)
 
 
-def checklist(items: Sequence[ListItem], lang: Lang = "fr") -> str:
+def checklist(items: Sequence[ListItem], lang: Lang = "fr", order: Mapping[str, float] | None = None) -> str:
     """Aisle-grouped checklist (✅ bought, ☐ to buy), e.g. for a calendar description or a plain-text message."""
     return "\n\n".join(
         f"{aisle}\n" + "\n".join(f"{'✅' if item.done else '☐'} {item_label(item)}" for __, item in entries)
-        for aisle, entries in group_by_aisle(items, lang).items()
+        for aisle, entries in group_by_aisle(items, lang, order).items()
     )
 
 
@@ -122,7 +131,9 @@ def event_summary(lst: ShoppingList, lang: Lang = "fr", currency: str = "€") -
     return text("event_title", lang, details=details)
 
 
-def event_description(lst: ShoppingList, lang: Lang = "fr", currency: str = "€") -> str:
+def event_description(
+    lst: ShoppingList, lang: Lang = "fr", currency: str = "€", order: Mapping[str, float] | None = None
+) -> str:
     """Description of the calendar event: coverage and estimated cost, the aisle-grouped checklist, then recipes."""
     head = []
     if lst.days or lst.coverage:
@@ -130,7 +141,7 @@ def event_description(lst: ShoppingList, lang: Lang = "fr", currency: str = "€
         head.append(text("event_covers", lang, what=what))
     if cost := format_cost(lst.cost_min, lst.cost_max, lang, currency):
         head.append(text("event_cost", lang, cost=cost))
-    body = checklist(lst.items, lang)
+    body = checklist(lst.items, lang, order)
     out = ("\n".join(head) + "\n\n" if head else "") + body
     if lst.recipes:
         out += f"\n\n{text('event_recipes', lang)}\n\n{lst.recipes.strip()}"

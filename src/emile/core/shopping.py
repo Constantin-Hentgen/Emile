@@ -16,7 +16,17 @@ from emile.core import stock
 from emile.core.errors import InvalidInput, ItemNotFound, LimitExceeded, NoCurrentList, StaleList
 from emile.core.limits import DEFAULT_LIMITS, Limits
 from emile.core.models import EditSummary, Kitchen, ListItem, NewItem, ShoppingList, Source
-from emile.core.text import MAX_AISLE, MAX_COVERAGE, MAX_NAME, MAX_QTY, clean, keeps_days, name_key, positive_int
+from emile.core.text import (
+    MAX_AISLE,
+    MAX_COVERAGE,
+    MAX_NAME,
+    MAX_QTY,
+    MAX_SHOP,
+    clean,
+    keeps_days,
+    name_key,
+    positive_int,
+)
 
 
 def _item(new: NewItem, limits: Limits) -> ListItem | None:
@@ -48,6 +58,7 @@ def new_list(
     now: datetime.datetime,
     days: object = None,
     coverage: str | None = None,
+    shop: str | None = None,
     cost_min: float | None = None,
     cost_max: float | None = None,
     start: datetime.datetime | None = None,
@@ -89,6 +100,7 @@ def new_list(
         items=clean_items,
         days=positive_int(days),
         coverage=clean(coverage, MAX_COVERAGE),
+        shop=clean(shop, MAX_SHOP),
         cost_min=cost_min,
         cost_max=cost_max,
         event_start=start,

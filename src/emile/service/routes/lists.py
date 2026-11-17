@@ -41,6 +41,7 @@ def create_list(
             now=now,
             days=body.days,
             coverage=body.coverage,
+            shop=body.shop,
             cost_min=body.cost_min,
             cost_max=body.cost_max,
             start=start,
@@ -127,7 +128,7 @@ def current_text(
         lst = shopping.current(kitchen)
         if style == "summary":
             return render.summary_line(lst, language, info.currency)  # type: ignore[arg-type]
-        return render.checklist(lst.items, language)  # type: ignore[arg-type]
+        return render.checklist(lst.items, language, info.aisle_order)  # type: ignore[arg-type]
 
     return repository.read(db, household.id, run)
 
