@@ -15,7 +15,7 @@ from emile.service import errors, migrate, sync
 from emile.service.db import Database
 from emile.service.deps import Clock
 from emile.service.remote import RemoteFactory, caldav_factory
-from emile.service.routes import account, admin, calendar, imports, lists, recipes, shop, stock
+from emile.service.routes import account, admin, calendar, export, imports, lists, recipes, shop, stock
 from emile.service.settings import Settings, get_settings
 from emile.service.vault import Vault
 
@@ -118,6 +118,7 @@ def create_app(
 
     for router in (
         account.router,
+        export.router,
         lists.router,
         stock.router,
         recipes.router,
