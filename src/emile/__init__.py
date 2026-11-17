@@ -13,4 +13,4 @@ try:
     # Single source of truth: the version release-please writes into pyproject.toml.
     __version__ = version("emile")
 except PackageNotFoundError:  # running from a source tree that was never installed
-    __version__ = "0.6.0"
+    __version__ = "0.7.0"
