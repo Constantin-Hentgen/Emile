@@ -27,6 +27,7 @@ from emile.schemas import (
     CalendarOut,
     EditListResponse,
     ExpireResponse,
+    Export,
     Health,
     HouseholdOut,
     ImportResult,
@@ -115,6 +116,10 @@ class Emile:
 
     def household(self) -> HouseholdOut:
         return self._get(HouseholdOut, "GET", "/v1/household")
+
+    def export_data(self) -> Export:
+        """The household's data (list, stock, settings), without secrets."""
+        return self._get(Export, "GET", "/v1/export")
 
     def update_household(self, **fields: Any) -> HouseholdOut:
         """``name``, ``timezone``, ``language``, ``currency``, ``meal_boxes``."""

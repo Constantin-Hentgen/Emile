@@ -11,7 +11,16 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
-from emile.core.models import EditSummary, NewItem, ShoppingList, StockAdd, StockEntry, StockRemove, StockSummary
+from emile.core.models import (
+    EditSummary,
+    Kitchen,
+    NewItem,
+    ShoppingList,
+    StockAdd,
+    StockEntry,
+    StockRemove,
+    StockSummary,
+)
 
 type Language = Literal["fr", "en"]
 
@@ -427,3 +436,21 @@ class ShopView(BaseModel):
     groups: list[ShopGroup]
     total: int
     done: int
+
+
+class ExportHousehold(BaseModel):
+    name: str
+    timezone: str
+    language: Language
+    currency: str
+    meal_boxes: int
+
+
+class Export(BaseModel):
+    """A household's data, without secrets (no API keys, shop links or calendar settings)."""
+
+    format: Literal["emile-export"] = "emile-export"
+    version: int = 1
+    exported_at: datetime.datetime
+    household: ExportHousehold
+    kitchen: Kitchen
