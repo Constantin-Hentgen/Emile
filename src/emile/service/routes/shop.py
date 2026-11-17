@@ -59,7 +59,7 @@ def _view(lst: ShoppingList, info: HouseholdInfo) -> ShopView:
         ShopGroup(
             aisle=aisle, items=[ShopItem(index=i, label=render.item_label(item), done=item.done) for i, item in entries]
         )
-        for aisle, entries in render.group_by_aisle(lst.items, lang).items()
+        for aisle, entries in render.group_by_aisle(lst.items, lang, info.aisle_order).items()
     ]
     return ShopView(
         list_id=lst.id,

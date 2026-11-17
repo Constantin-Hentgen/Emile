@@ -7,17 +7,17 @@ the fresh state. The rules are deterministic, so replaying is always safe.
 
 import datetime
 import logging
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
-from emile.core import Kitchen, ListItem, ShoppingList, Source, StockEntry
+from emile.core import Kitchen, ListItem, ShoppingList, Source, StockEntry, aisles
 from emile.service.db import Database
-from emile.service.tables import Household, ListItemRow, ShoppingListRow, StockRow
+from emile.service.tables import AisleRank, Household, ListItemRow, ShoppingListRow, StockRow
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +46,14 @@ class HouseholdInfo:
     language: str
     currency: str
     meal_boxes: int
+    aisle_order: Mapping[str, float] = field(default_factory=dict)
+    """Learned layout of the shop of the current list (aisle key → score), empty when unknown."""
 
     @classmethod
-    def of(cls, row: Household) -> "HouseholdInfo":
-        return cls(row.id, row.name, ZoneInfo(row.timezone), row.language, row.currency, row.meal_boxes)
+    def of(cls, row: Household, aisle_order: Mapping[str, float] | None = None) -> "HouseholdInfo":
+        return cls(
+            row.id, row.name, ZoneInfo(row.timezone), row.language, row.currency, row.meal_boxes, aisle_order or {}
+        )
 
     def today(self, now: datetime.datetime) -> datetime.date:
         """The household's local date at ``now`` (an aware datetime)."""
@@ -68,6 +72,7 @@ def load(session: Session, household: Household) -> Kitchen:
             items=[ListItem(name=i.name, qty=i.qty, aisle=i.aisle, keeps=i.keeps, done=i.done) for i in items],
             days=lst_row.days,
             coverage=lst_row.coverage,
+            shop=lst_row.shop,
             cost_min=lst_row.cost_min,
             cost_max=lst_row.cost_max,
             recipes=lst_row.recipes,
@@ -130,6 +135,7 @@ def save(session: Session, household_id: int, kitchen: Kitchen, expected_version
                 list_id=lst.id,
                 days=lst.days,
                 coverage=lst.coverage,
+                shop=lst.shop,
                 cost_min=lst.cost_min,
                 cost_max=lst.cost_max,
                 recipes=lst.recipes,
@@ -172,11 +178,39 @@ def save(session: Session, household_id: int, kitchen: Kitchen, expected_version
     )
 
 
+def ranks_of(session: Session, household_id: int, shop: str | None) -> dict[str, tuple[float, int]]:
+    if not shop:
+        return {}
+    rows = session.scalars(
+        select(AisleRank).where(AisleRank.household_id == household_id, AisleRank.shop == aisles.key(shop))
+    )
+    return {r.aisle: (r.score, r.seen) for r in rows}
+
+
+def _info(session: Session, household: Household, kitchen: Kitchen) -> HouseholdInfo:
+    shop = kitchen.current_list.shop if kitchen.current_list else None
+    return HouseholdInfo.of(household, aisles.order(ranks_of(session, household.id, shop)))
+
+
+def learn(session: Session, household_id: int, before: ShoppingList | None, after: ShoppingList | None) -> None:
+    """Fold the aisles started between ``before`` and ``after`` into the shop's learned order."""
+    if after is None or not after.shop:
+        return
+    ranks = ranks_of(session, household_id, after.shop)
+    for aisle, position in aisles.first_ticks(before, after).items():
+        score, seen = aisles.blend(*ranks.get(aisle, (0.0, 0)), position)
+        ranks[aisle] = (score, seen)
+        session.merge(
+            AisleRank(household_id=household_id, shop=aisles.key(after.shop), aisle=aisle, score=score, seen=seen)
+        )
+
+
 def read[T](database: Database, household_id: int, fn: Callable[[Kitchen, HouseholdInfo], T]) -> T:
     """Run a read-only function on the household's kitchen."""
     with database.session() as session:
         household = session.get_one(Household, household_id)
-        return fn(load(session, household), HouseholdInfo.of(household))
+        kitchen = load(session, household)
+        return fn(kitchen, _info(session, household, kitchen))
 
 
 def mutate[T](database: Database, household_id: int, fn: Callable[[Kitchen, HouseholdInfo], T]) -> T:
@@ -191,8 +225,10 @@ def mutate[T](database: Database, household_id: int, fn: Callable[[Kitchen, Hous
                 household = session.get_one(Household, household_id)
                 version = household.version
                 kitchen = load(session, household)
-                result = fn(kitchen, HouseholdInfo.of(household))
+                before = kitchen.current_list.model_copy(deep=True) if kitchen.current_list else None
+                result = fn(kitchen, _info(session, household, kitchen))
                 save(session, household_id, kitchen, version)
+                learn(session, household_id, before, kitchen.current_list)
             return result
         except Conflict:
             logger.info("household %s: concurrent write, retrying (%s/%s)", household_id, attempt, MAX_ATTEMPTS)

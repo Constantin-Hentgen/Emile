@@ -70,6 +70,7 @@ class ShoppingListRow(Base):
     list_id: Mapped[int] = mapped_column(Integer)
     days: Mapped[int | None] = mapped_column(Integer)
     coverage: Mapped[str | None] = mapped_column(String(200))
+    shop: Mapped[str | None] = mapped_column(String(60))
     cost_min: Mapped[float | None] = mapped_column(Float)
     cost_max: Mapped[float | None] = mapped_column(Float)
     recipes: Mapped[str | None] = mapped_column(Text)
@@ -109,6 +110,18 @@ class StockRow(Base):
     due: Mapped[datetime.date | None] = mapped_column(Date)
     asked: Mapped[datetime.date | None] = mapped_column(Date)
     boxes: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class AisleRank(Base):
+    """How early an aisle is started in a shop (0 = first, 1 = last), smoothed over the last trips."""
+
+    __tablename__ = "aisle_ranks"
+
+    household_id: Mapped[int] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"), primary_key=True)
+    shop: Mapped[str] = mapped_column(String(60), primary_key=True)
+    aisle: Mapped[str] = mapped_column(String(60), primary_key=True)
+    score: Mapped[float] = mapped_column(Float)
+    seen: Mapped[int] = mapped_column(Integer)
 
 
 class ShopLink(Base):

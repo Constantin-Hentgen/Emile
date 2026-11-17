@@ -22,6 +22,7 @@ from pydantic import BaseModel, TypeAdapter
 from emile import __version__
 from emile.core.models import EditSummary, NewItem, ShoppingList, StockAdd, StockRemove, StockSummary
 from emile.schemas import (
+    AisleOrder,
     AnswerResponse,
     AskedResponse,
     CalendarOut,
@@ -120,6 +121,13 @@ class Emile:
     def export_data(self) -> Export:
         """The household's data (list, stock, settings), without secrets."""
         return self._get(Export, "GET", "/v1/export")
+
+    def aisle_order(self, shop: str) -> AisleOrder:
+        """The aisles of ``shop`` in the order they are usually started."""
+        return self._get(AisleOrder, "GET", "/v1/aisle-order", params={"shop": shop})
+
+    def forget_aisle_order(self, shop: str) -> None:
+        self._request("DELETE", "/v1/aisle-order", params={"shop": shop})
 
     def update_household(self, **fields: Any) -> HouseholdOut:
         """``name``, ``timezone``, ``language``, ``currency``, ``meal_boxes``."""

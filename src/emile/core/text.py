@@ -5,6 +5,7 @@ from emile.core.limits import DEFAULT_LIMITS, Limits
 MAX_NAME = 80
 MAX_QTY = 40
 MAX_AISLE = 60
+MAX_SHOP = 60
 MAX_COVERAGE = 200
 
 

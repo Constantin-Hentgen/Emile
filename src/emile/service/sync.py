@@ -84,7 +84,7 @@ def desired_event(lst: ShoppingList | None, info: HouseholdInfo, now: datetime.d
     return Desired(
         uid=lst.event_uid or ical.new_uid(),
         summary=render.event_summary(lst, lang, info.currency),
-        description=render.event_description(lst, lang, info.currency),
+        description=render.event_description(lst, lang, info.currency, info.aisle_order),
         start=lst.event_start,
         end=lst.event_end,
     )

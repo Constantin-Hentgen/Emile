@@ -149,6 +149,8 @@ class NewListRequest(BaseModel):
     items: list[NewItem]
     days: int | None = Field(default=None, validation_alias=AliasChoices("days", "days_covered"))
     coverage: str | None = None
+    shop: str | None = None
+    """Where the household will shop: the aisle order is learned per shop from the order of ticking."""
     cost_min: float | None = Field(default=None, validation_alias=AliasChoices("cost_min", "estimated_cost_min_eur"))
     cost_max: float | None = Field(default=None, validation_alias=AliasChoices("cost_max", "estimated_cost_max_eur"))
     start_time: datetime.datetime | None = None
@@ -454,3 +456,10 @@ class Export(BaseModel):
     exported_at: datetime.datetime
     household: ExportHousehold
     kitchen: Kitchen
+
+
+class AisleOrder(BaseModel):
+    """The learned layout of a shop: its aisles, in the order they are usually started (names are case-folded)."""
+
+    shop: str
+    aisles: list[str]

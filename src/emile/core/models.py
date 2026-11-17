@@ -59,6 +59,8 @@ class ShoppingList(BaseModel):
 
     id: int
     items: list[ListItem] = Field(default_factory=list)
+    shop: str | None = None
+    """Where the household shops for this list: the aisle order is learned per shop."""
     days: int | None = None
     """Number of days the list covers."""
     coverage: str | None = None
