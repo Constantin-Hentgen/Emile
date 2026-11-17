@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0](https://github.com/Constantin-Hentgen/Emile/compare/v0.5.0...v0.6.0) (2026-11-17)
+
+
+### Added
+
+* **api:** GET /v1/export dumps a household as JSON ([#52](https://github.com/Constantin-Hentgen/Emile/issues/52)) ([9f01eb7](https://github.com/Constantin-Hentgen/Emile/commit/9f01eb76fc3d2e3276a460f4f0f061c6bb39fd50))
+* **stock:** merge option adds to an existing entry instead of replacing it ([#49](https://github.com/Constantin-Hentgen/Emile/issues/49)) ([0de4e40](https://github.com/Constantin-Hentgen/Emile/commit/0de4e408a6eed5ad562adecc3cdaec058cb8b34a))
+
 ## [0.5.0](https://github.com/Constantin-Hentgen/Emile/compare/v0.4.1...v0.5.0) (2026-11-16)
 
 
