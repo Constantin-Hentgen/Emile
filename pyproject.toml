@@ -1,6 +1,6 @@
 [project]
 name = "emile"
-version = "0.6.0"
+version = "0.7.0"
 description = "Self-hosted, API-first groceries service: shopping lists, kitchen stock, batch-cooked boxes, recipes, CalDAV sync."
 readme = "README.md"
 license = "MIT"

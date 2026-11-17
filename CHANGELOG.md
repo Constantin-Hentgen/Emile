@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/Constantin-Hentgen/Emile/compare/v0.6.0...v0.7.0) (2026-11-17)
+
+
+### Added
+
+* **shop:** learn the aisle order of each shop from the order of ticking ([#53](https://github.com/Constantin-Hentgen/Emile/issues/53)) ([6d39482](https://github.com/Constantin-Hentgen/Emile/commit/6d39482839d63f7052c2923370fbd0ae4839b2f9))
+
 ## [0.6.0](https://github.com/Constantin-Hentgen/Emile/compare/v0.5.0...v0.6.0) (2026-11-17)
 
 
