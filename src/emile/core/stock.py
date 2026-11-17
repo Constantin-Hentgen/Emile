@@ -14,6 +14,7 @@ import datetime
 import re
 from collections.abc import Iterable, Iterator, Sequence
 
+from emile.core import quantity
 from emile.core.errors import InvalidInput, LimitExceeded
 from emile.core.limits import DEFAULT_LIMITS, Limits
 from emile.core.models import KeepsValue, Kitchen, Source, StockAdd, StockEntry, StockRemove, StockSummary
@@ -128,9 +129,19 @@ def update(
         for a in add:
             if clean(a.name, MAX_NAME) is None:
                 continue
-            entry = put(kitchen, a.name, a.qty, today, keeps=a.keeps, boxes=a.boxes, limits=limits)
+            qty = _merged(kitchen, a, lang) if a.merge else a.qty
+            entry = put(kitchen, a.name, qty, today, keeps=a.keeps, boxes=a.boxes, limits=limits)
             out.added.append(label(entry))
     return out
+
+
+def _merged(kitchen: Kitchen, add: StockAdd, lang: Lang) -> str | None:
+    """The quantity to store when ``add`` is added to what is there: the sum when both read as the same kind of
+    quantity, otherwise the new quantity alone (nothing is guessed)."""
+    entry = find(kitchen, add.name)
+    have, more = parse(entry.qty if entry else None), parse(clean(add.qty, MAX_QTY))
+    total = quantity.add(have, more) if have and more else None
+    return format_quantity(total, lang) if total else add.qty
 
 
 def _use(entry: StockEntry, used_text: str) -> Quantity | None:

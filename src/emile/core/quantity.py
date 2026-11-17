@@ -243,3 +243,10 @@ def subtract(have: Quantity, used: Quantity) -> Quantity | None:
         raise IncompatibleQuantity(f"cannot take {used.unit.value} from {have.unit.value}")
     rest = have.amount - used.amount
     return Quantity(rest, have.unit, have.lang) if rest > 0 else None
+
+
+def add(have: Quantity, more: Quantity) -> Quantity | None:
+    """Both amounts together, or ``None`` when they are of different kinds and cannot be added."""
+    if have.unit is not more.unit:
+        return None
+    return Quantity(have.amount + more.amount, have.unit, have.lang or more.lang)
