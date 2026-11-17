@@ -237,3 +237,40 @@ def test_entries_and_items_expose_their_measure(kitchen):
     bread = stock.put(kitchen, "Pain", None, TODAY)
     assert rice.measure is not None
     assert (rice.measure.amount, rice.measure.unit, bread.measure) == (1000.0, "g", None)
+
+
+def test_merge_adds_to_what_is_there() -> None:
+    kitchen = Kitchen()
+    stock.update(kitchen, add=[StockAdd(name="Riz", qty="500 g")], today=TODAY)
+    out = stock.update(kitchen, add=[StockAdd(name="riz", qty="1 kg", merge=True)], today=TODAY)
+    assert out.added == ["riz (1,5 kg)"]
+    assert [e.qty for e in kitchen.stock] == ["1,5 kg"]
+
+
+def test_merge_keeps_the_language_of_the_household() -> None:
+    kitchen = Kitchen()
+    stock.update(kitchen, add=[StockAdd(name="Rice", qty="500 g")], today=TODAY)
+    stock.update(kitchen, add=[StockAdd(name="Rice", qty="250 g", merge=True)], today=TODAY, lang="en")
+    assert kitchen.stock[0].qty == "750 g"
+
+
+def test_merge_replaces_when_nothing_can_be_added() -> None:
+    kitchen = Kitchen()
+    stock.update(kitchen, add=[StockAdd(name="Thon", qty="3 boîtes")], today=TODAY)
+    stock.update(kitchen, add=[StockAdd(name="Thon", qty="200 g", merge=True)], today=TODAY)
+    assert kitchen.stock[0].qty == "200 g"
+    stock.update(kitchen, add=[StockAdd(name="Thon", qty="un peu", merge=True)], today=TODAY)
+    assert kitchen.stock[0].qty == "un peu"
+
+
+def test_without_merge_the_entry_is_replaced() -> None:
+    kitchen = Kitchen()
+    stock.update(kitchen, add=[StockAdd(name="Riz", qty="500 g")], today=TODAY)
+    stock.update(kitchen, add=[StockAdd(name="Riz", qty="250 g")], today=TODAY)
+    assert kitchen.stock[0].qty == "250 g"
+
+
+def test_merge_into_a_new_name_just_adds() -> None:
+    kitchen = Kitchen()
+    stock.update(kitchen, add=[StockAdd(name="Riz", qty="1 kg", merge=True)], today=TODAY)
+    assert kitchen.stock[0].qty == "1 kg"

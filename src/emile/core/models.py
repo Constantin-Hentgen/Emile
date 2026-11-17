@@ -128,7 +128,7 @@ class NewItem(BaseModel):
 
 
 class StockAdd(BaseModel):
-    """Something to add to the stock (same name: replaces the entry)."""
+    """Something to add to the stock (same name: replaces the entry, or adds to it with ``merge``)."""
 
     model_config = _INPUT
 
@@ -136,6 +136,7 @@ class StockAdd(BaseModel):
     qty: str | None = Field(default=None, validation_alias=_QTY)
     keeps: KeepsValue = Field(default=None, validation_alias=_KEEPS)
     boxes: bool = False
+    merge: bool = False
 
 
 class StockRemove(BaseModel):

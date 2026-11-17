@@ -130,3 +130,10 @@ def test_list_items_carry_a_measure(api):
     api.post("/v1/lists", json={"items": [{"name": "Lait", "qty": "2 x 1 L"}, {"name": "Basilic", "qty": "1 botte"}]})
     items = api.get("/v1/lists/current").json()["items"]
     assert [i["measure"] for i in items] == [{"amount": 2000.0, "unit": "ml"}, None]
+
+
+def test_merge_adds_to_the_entry_through_the_api(api):
+    api.post("/v1/stock", json={"add": [{"name": "Riz", "qty": "500 g"}]})
+    res = api.post("/v1/stock", json={"add": [{"name": "Riz", "qty": "250 g", "merge": True}]})
+    assert res.json()["added"] == ["Riz (750 g)"]
+    assert [e["qty"] for e in api.get("/v1/stock").json()["entries"]] == ["750 g"]
